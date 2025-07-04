@@ -1,0 +1,22 @@
+# File: requirements.txt
+# Path: requirements.txt
+# Standard: AIDEV-PascalCase-1.8
+# Created: 2025-07-04
+# Last Modified: 2025-07-04  04:12PM
+# Description: Python dependencies for Anderson's Library - Professional Edition
+
+# GUI Framework
+PySide6>=6.5.0
+
+# Database
+# No additional SQL dependencies needed - using Python's built-in sqlite3
+
+# Optional: Development and testing tools
+# pytest>=7.0.0          # For unit testing
+# black>=23.0.0           # For code formatting
+# isort>=5.0.0            # For import sorting
+
+# Optional: Enhanced functionality
+# Pillow>=9.0.0           # For advanced image processing
+# python-magic>=0.4.0     # For file type detection
+# pypdf2>=3.0.0           # For PDF metadata extraction

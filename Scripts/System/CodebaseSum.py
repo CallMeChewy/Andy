@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """
 File: CodebaseSum.py
 Path: BowersWorld-com/Scripts/CodebaseSum.py

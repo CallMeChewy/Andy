@@ -1,0 +1,52 @@
+(.venv) ~/Desktop/Andy$ /home/herb/Desktop/Andy/.venv/bin/python /home/herb/Desktop/Andy/Updates/final_import_fix.py
+🏔️ Anderson's Library - Final Import Fix
+==================================================
+📦 Adding missing QSizePolicy import
+💡 This should be the FINAL fix needed!
+==================================================
+🔧 Anderson's Library - Final Import Fix
+==================================================
+📦 Adding missing QSizePolicy import to MainWindow.py
+🔍 Checking current imports...
+✅ Added QSizePolicy to imports at line 17
+✅ Import fix applied successfully!
+
+🔍 Validating imports...
+✅ All required imports found!
+
+==================================================
+🎉 FINAL IMPORT FIX SUCCESSFUL!
+==================================================
+🚀 Now try running: python AndersonLibrary.py
+🎉 Anderson's Library should fully launch!
+🏔️ Welcome to Professional Modular Architecture!
+
+🔍 Checking for other potential import issues...
+⚠️  Potentially missing imports: QPushButton, QTextEdit, QDialog, QFileDialog
+(.venv) ~/Desktop/Andy$ /home/herb/Desktop/Andy/.venv/bin/python /home/herb/Desktop/Andy/AndersonLibrary.py
+🏔️ Anderson's Library - Professional Edition
+==================================================
+📚 Digital Library Management System
+🎯 Project Himalaya - BowersWorld.com
+⚡ Modular Architecture - Design Standard v1.8
+==================================================
+📁 Checking file structure...
+   ✅ Source/Data/DatabaseModels.py
+   ✅ Source/Core/DatabaseManager.py
+   ✅ Source/Core/BookService.py
+   ✅ Source/Interface/FilterPanel.py
+   ✅ Source/Interface/BookGrid.py
+   ✅ Source/Interface/MainWindow.py
+   ✅ Source/Interface/CustomWindow.py
+📊 Files: 7 present, 0 missing
+🗄️  Testing database connection...
+   ✅ Found database: Assets/my_library.db
+🐍 Testing Python imports...
+   ✅ PySide6 available
+==================================================
+✅ ENVIRONMENT VALIDATION PASSED
+🚀 Starting Anderson's Library...
+==================================================
+❌ Startup Error: invalid syntax (MainWindow.py, line 17)
+ERROR:root:Application startup failed: invalid syntax (MainWindow.py, line 17)
+(.venv) ~/Desktop/Andy$ 

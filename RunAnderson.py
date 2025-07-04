@@ -17,8 +17,7 @@ import sys
 import os
 import logging
 from pathlib import Path
-
-def SetupPythonPath():
+cdef SetupPythonPath():
     """Add Source directory to Python path for imports"""
     SourcePath = Path(__file__).parent / "Source"
     if SourcePath.exists():
