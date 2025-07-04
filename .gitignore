@@ -1,4 +1,4 @@
-# Anderson's Library - .gitignore
+# Andy - .gitignore
 # Generated: 2025-07-04
 # Standard: AIDEV-PascalCase-1.8
 
@@ -39,8 +39,8 @@ ENV/
 *~
 
 # Anderson's Library Specific
-Data/Databases/*.db
-Data/Databases/*.db-*
+## Data/Databases/*.db
+## Data/Databases/*.db-*
 Data/Cache/
 Data/Backups/
 Logs/
@@ -54,9 +54,9 @@ Config/Production/api_keys.json
 .env.production
 
 # Large Files
-Assets/Books/
-Assets/Covers/
-Assets/Thumbs/
+## Assets/Books/
+## Assets/Covers/
+## Assets/Thumbs/
 
 # Temporary Files
 tmp/
@@ -95,3 +95,7 @@ secrets/
 
 # Directories to ignore
 node_modules/
+
+**/Books/*
+**/Covers/*
+**/Thumbs/*

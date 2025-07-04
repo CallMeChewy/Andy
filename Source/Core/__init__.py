@@ -1,13 +1,13 @@
 # File: __init__.py
-# Path: Source/Core/__init__.py
+# Path: Source/__init__.py
 # Standard: AIDEV-PascalCase-1.8
 # Created: 2025-07-04
 # Last Modified: 2025-07-04  14:09PM
 """
-Description: Core Business Logic Package
-Core business logic and service layer components.
+Description: Anderson's Library Source Package
+Main source code package for Anderson's Library application.
 
-Purpose: Package initialization for Source/Core module. Provides clean
+Purpose: Package initialization for Source module. Provides clean
 import interfaces and package-level configuration.
 """
 

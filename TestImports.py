@@ -22,14 +22,15 @@ def TestImports():
     print("🧪 Testing Anderson's Library Module Imports")
     print("=" * 50)
     
-    # Add Source to Python path
-    SourcePath = Path(__file__).parent / "Source"
-    if SourcePath.exists():
-        sys.path.insert(0, str(SourcePath))
-        print(f"✅ Added to path: {SourcePath}")
-    else:
-        print(f"❌ Source directory not found: {SourcePath}")
-        print("📁 Make sure you've run the setup scripts first")
+    # Add current directory to Python path (where Clive put the modules)
+    CurrentPath = Path(__file__).parent
+    sys.path.insert(0, str(CurrentPath))
+    print(f"✅ Added to path: {CurrentPath}")
+    
+    # Check if we have the modular structure that Clive created
+    if not (CurrentPath / "Data").exists():
+        print("❌ Modular directories not found")
+        print("📁 Make sure UpdatePopulate.py has been run")
         return False
     
     print("\n🔍 Testing module imports...")
