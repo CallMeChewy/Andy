@@ -1,0 +1,30 @@
+# Anderson's Library - Requirements
+# Generated: 2025-07-04
+# Standard: AIDEV-PascalCase-1.8
+
+# Core GUI Framework
+PySide6>=6.5.0
+
+# Database Operations
+# (SQLite is built into Python)
+
+# Image Processing (for cover thumbnails)
+Pillow>=9.0.0
+
+# PDF Processing (future enhancement)
+PyPDF2>=3.0.0
+
+# Development and Testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Code Quality
+black>=22.0.0
+flake8>=4.0.0
+
+# Logging and Utilities
+colorlog>=6.0.0
+
+# Documentation (future)
+sphinx>=4.0.0
+sphinx-rtd-theme>=1.0.0

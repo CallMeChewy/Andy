@@ -1,4 +1,6 @@
-# Andy - .gitignore
+# Anderson's Library - .gitignore
+# Generated: 2025-07-04
+# Standard: AIDEV-PascalCase-1.8
 
 # Python
 __pycache__/
@@ -21,7 +23,6 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-import pandas as pd
 
 # Virtual Environments
 venv/
@@ -37,12 +38,25 @@ ENV/
 *.swo
 *~
 
-# BowersWorld-com Specific (Digital Alexandria Architecture)
+# Anderson's Library Specific
+Data/Databases/*.db
+Data/Databases/*.db-*
+Data/Cache/
+Data/Backups/
 Logs/
 *.log
 
 # Sensitive Configuration
-Config/
+Config/Production/secrets.json
+Config/Production/api_keys.json
+.env
+.env.local
+.env.production
+
+# Large Files
+Assets/Books/
+Assets/Covers/
+Assets/Thumbs/
 
 # Temporary Files
 tmp/
@@ -70,16 +84,14 @@ coverage.xml
 .pytest_cache/
 .tox/
 
-# Special exclusion for directories starting with '..'
-..*/
+# Documentation builds
+docs/_build/
+docs/build/
 
-# Add this to your .gitignore file
-*.json
+# Project-specific exclusions
+anderson-library-service-key.json
+config/
+secrets/
 
 # Directories to ignore
 node_modules/
-Data/Books/
-**/Books/*
-**/Covers/*
-**/Text/*
-**/Thumbs/*
