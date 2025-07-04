@@ -78,6 +78,7 @@ coverage.xml
 
 # Directories to ignore
 node_modules/
+Data/Books/
 **/Books/*
 **/Covers/*
 **/Text/*
