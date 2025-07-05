@@ -1,52 +1,47 @@
-(.venv) ~/Desktop/Andy$ /home/herb/Desktop/Andy/.venv/bin/python /home/herb/Desktop/Andy/Updates/final_import_fix.py
-🏔️ Anderson's Library - Final Import Fix
+/home/herb/Desktop/Andy/.venv/bin/python /home/herb/Desktop/Andy/Updates/ui_behavior_fix.py
+(.venv) ~/Desktop/Andy$ /home/herb/Desktop/Andy/.venv/bin/python /home/herb/Desktop/Andy/Updates/ui_behavior_fix.py
+🏔️ Anderson's Library - UI Behavior Fix
 ==================================================
-📦 Adding missing QSizePolicy import
-💡 This should be the FINAL fix needed!
+🎯 Fixing layout, colors, and startup behavior
 ==================================================
-🔧 Anderson's Library - Final Import Fix
-==================================================
-📦 Adding missing QSizePolicy import to MainWindow.py
-🔍 Checking current imports...
-✅ Added QSizePolicy to imports at line 17
-✅ Import fix applied successfully!
+🔧 Fixing FilterPanel layout and width...
+   ✅ Increased FilterPanel width: 280 → 320
+   ✅ Simplified FilterPanel styling to inherit from CustomWindow
+   ✅ Adjusted minimum height: 600 → 500
+✅ FilterPanel layout fixed
+🎨 Reverting to original CustomWindow colors...
+   ✅ Removed custom styling from BookGrid.py
+   ✅ Removed custom styling from MainWindow.py
+✅ Reverted to original CustomWindow colors
+🚀 Fixing startup behavior - empty grid on startup...
+   ✅ Disabled automatic book loading on startup
+   ✅ Added empty state display for startup
+✅ Startup behavior fixed - will show empty grid
+📚 Enhancing BookGrid empty state display...
+   ✅ Enhanced empty state message
+✅ BookGrid empty state enhanced
+↔️  Fixing splitter proportions...
+   ✅ Increased FilterPanel space: [280, 1120] → [350, 1050]
+   ✅ Prevented FilterPanel from being collapsed
+✅ Splitter proportions fixed
 
-🔍 Validating imports...
-✅ All required imports found!
+🔍 Validating changes...
+✅ All changes validated successfully
 
-==================================================
-🎉 FINAL IMPORT FIX SUCCESSFUL!
-==================================================
+============================================================
+🎉 UI BEHAVIOR FIX COMPLETE!
+============================================================
+✅ FilterPanel width increased and layout improved
+✅ Reverted to original CustomWindow colors
+✅ Startup now shows empty grid
+✅ Books load only when user searches
+✅ Better splitter proportions
+✅ Enhanced empty state messaging
+
 🚀 Now try running: python AndersonLibrary.py
-🎉 Anderson's Library should fully launch!
-🏔️ Welcome to Professional Modular Architecture!
-
-🔍 Checking for other potential import issues...
-⚠️  Potentially missing imports: QPushButton, QTextEdit, QDialog, QFileDialog
-(.venv) ~/Desktop/Andy$ /home/herb/Desktop/Andy/.venv/bin/python /home/herb/Desktop/Andy/AndersonLibrary.py
-🏔️ Anderson's Library - Professional Edition
-==================================================
-📚 Digital Library Management System
-🎯 Project Himalaya - BowersWorld.com
-⚡ Modular Architecture - Design Standard v1.8
-==================================================
-📁 Checking file structure...
-   ✅ Source/Data/DatabaseModels.py
-   ✅ Source/Core/DatabaseManager.py
-   ✅ Source/Core/BookService.py
-   ✅ Source/Interface/FilterPanel.py
-   ✅ Source/Interface/BookGrid.py
-   ✅ Source/Interface/MainWindow.py
-   ✅ Source/Interface/CustomWindow.py
-📊 Files: 7 present, 0 missing
-🗄️  Testing database connection...
-   ✅ Found database: Assets/my_library.db
-🐍 Testing Python imports...
-   ✅ PySide6 available
-==================================================
-✅ ENVIRONMENT VALIDATION PASSED
-🚀 Starting Anderson's Library...
-==================================================
-❌ Startup Error: invalid syntax (MainWindow.py, line 17)
-ERROR:root:Application startup failed: invalid syntax (MainWindow.py, line 17)
+📚 You should see:
+   • Wider, readable left panel
+   • Your original colors
+   • Empty grid on startup
+   • Books appear only when you search
 (.venv) ~/Desktop/Andy$ 

@@ -92,10 +92,13 @@ docs/build/
 anderson-library-service-key.json
 config/
 secrets/
+*.json
 
 # Directories to ignore
 node_modules/
-
 **/Books/*
 **/Covers/*
 **/Thumbs/*
+
+# Special exclusion for directories starting with '..'
+..*

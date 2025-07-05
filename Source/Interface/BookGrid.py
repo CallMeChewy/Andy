@@ -403,7 +403,7 @@ class BookTile(QFrame):
                         font-weight: bold;
                     }
                 """)
-            elif self.IsHovered:
+        elif self.IsHovered:
                 self.setStyleSheet("""
                     QFrame {
                         background-color: #404040;
@@ -414,7 +414,7 @@ class BookTile(QFrame):
                         color: #ffffff;
                     }
                 """)
-            else:
+        else:
                 self.setStyleSheet("""
                     QFrame {
                         background-color: #3c3c3c;
@@ -613,46 +613,92 @@ class BookGrid(QWidget):
         self.SortOrderBtn.clicked.connect(self.OnSortOrderToggled)
     
     def ApplyStyles(self):
-        """Apply visual styling to the tile"""
-        if self.IsSelected:
-                self.setStyleSheet("""
-                    QFrame {
-                        background-color: #0078d4;
-                        border: 3px solid #106ebe;
-                        border-radius: 8px;
-                    }
-                    QLabel {
-                        color: #ffffff;
-                        font-weight: bold;
-                    }
-                """)
-            elif self.IsHovered:
-                self.setStyleSheet("""
-                    QFrame {
-                        background-color: #404040;
-                        border: 2px solid #0078d4;
-                        border-radius: 8px;
-                    }
-                    QLabel {
-                        color: #ffffff;
-                    }
-                """)
-            else:
-                self.setStyleSheet("""
-                    QFrame {
-                        background-color: #3c3c3c;
-                        border: 1px solid #555555;
-                        border-radius: 8px;
-                    }
-                    QFrame:hover {
-                        border: 2px solid #0078d4;
-                        background-color: #404040;
-                    }
-                    QLabel {
-                        color: #ffffff;
-                    }
-                """)
-
+        """Apply consistent styling to BookGrid"""
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                font-family: "Segoe UI", Arial, sans-serif;
+            }
+            
+            QFrame {
+                background-color: #3c3c3c;
+                border: 1px solid #555555;
+                border-radius: 4px;
+            }
+            
+            QPushButton {
+                padding: 8px 16px;
+                border: 2px solid #666666;
+                border-radius: 4px;
+                background-color: #4a4a4a;
+                color: #ffffff;
+                font-weight: bold;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #404040;
+                border-color: #0078d4;
+            }
+            QPushButton:checked {
+                background-color: #0078d4;
+                color: #ffffff;
+                border-color: #106ebe;
+            }
+            QPushButton:pressed {
+                background-color: #005a9e;
+            }
+            
+            QComboBox {
+                padding: 6px 12px;
+                border: 2px solid #666666;
+                border-radius: 4px;
+                background-color: #4a4a4a;
+                color: #ffffff;
+                font-size: 13px;
+                min-width: 120px;
+            }
+            QComboBox:hover {
+                border-color: #0078d4;
+                background-color: #404040;
+            }
+            
+            QProgressBar {
+                border: 2px solid #666666;
+                border-radius: 4px;
+                background-color: #4a4a4a;
+                text-align: center;
+                color: #ffffff;
+                font-weight: bold;
+            }
+            QProgressBar::chunk {
+                background-color: #0078d4;
+                border-radius: 2px;
+            }
+            
+            QLabel {
+                color: #ffffff;
+                font-size: 13px;
+            }
+            
+            QScrollArea {
+                border: none;
+                background-color: #2b2b2b;
+            }
+            QScrollBar:vertical {
+                background-color: #333333;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #555555;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #0078d4;
+            }
+        """)
     def SetBooks(self, Books: List[BookRecord]):
         """Set the list of books to display"""
         self.Books = Books.copy()
@@ -790,17 +836,25 @@ class BookGrid(QWidget):
     
     def ShowEmptyState(self):
         """Show empty state message"""
-        EmptyLabel = QLabel("📚\n\nNo books found\n\nTry adjusting your search filters")
+        self.ClearTiles()
+        
+        EmptyLabel = QLabel("📚\n\nAnderson's Library\n\nEnter search terms in the left panel to find books\n\nUse categories, authors, or text search to explore your library")
         EmptyLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         EmptyLabel.setStyleSheet("""
             QLabel {
                 color: #666;
-                font-size: 14pt;
-                padding: 50px;
+                font-size: 16pt;
+                padding: 60px;
+                line-height: 1.5;
             }
         """)
-        self.GridLayout.addWidget(EmptyLabel, 0, 0)
-    
+        
+        # Add to center of grid
+        self.GridLayout.addWidget(EmptyLabel, 0, 0, Qt.AlignmentFlag.AlignCenter)
+        
+        # Update status
+        self.StatusLabel.setText("Ready to search - Enter terms in the filter panel")
+
     def ShowLoadingState(self):
         """Show loading state"""
         self.StatusLabel.setText("Loading books...")
@@ -814,11 +868,11 @@ class BookGrid(QWidget):
             Reverse = (self.SortOrder == "DESC")
             
             if self.SortField == "Title":
-                self.FilteredBooks.sort(key=lambda b: b.Title.lower(), reverse=Reverse)
+                self.FilteredBooks.sort(key=lambda b: (b.Title or "").lower(), reverse=Reverse)
             elif self.SortField == "Author":
-                self.FilteredBooks.sort(key=lambda b: b.Author.lower(), reverse=Reverse)
+                self.FilteredBooks.sort(key=lambda b: (b.Author or "").lower(), reverse=Reverse)
             elif self.SortField == "Category":
-                self.FilteredBooks.sort(key=lambda b: b.Category.lower(), reverse=Reverse)
+                self.FilteredBooks.sort(key=lambda b: (b.Category or "").lower(), reverse=Reverse)
             elif self.SortField == "Date Added":
                 self.FilteredBooks.sort(key=lambda b: b.DateAdded, reverse=Reverse)
             elif self.SortField == "File Size":
