@@ -43,6 +43,11 @@ class FilterPanel(QWidget):
         self.SearchTimer.setSingleShot(True)
         self.SearchTimer.timeout.connect(self.OnSearchTimerTimeout)
         
+        # Author filter debouncing for editable ComboBox
+        self.AuthorTimer = QTimer()
+        self.AuthorTimer.setSingleShot(True)
+        self.AuthorTimer.timeout.connect(self.OnAuthorTimerTimeout)
+        
         # Current filter state
         self.CurrentCriteria = SearchCriteria()
         
@@ -381,8 +386,9 @@ class FilterPanel(QWidget):
         self.CategoryCombo.currentTextChanged.connect(self.OnFiltersChanged)
         self.CategoryList.itemSelectionChanged.connect(self.OnFiltersChanged)
         
-        # Author filter
-        self.AuthorCombo.currentTextChanged.connect(self.OnFiltersChanged)
+        # Author filter - use both signals for editable ComboBox
+        self.AuthorCombo.currentIndexChanged.connect(self.OnFiltersChanged)
+        self.AuthorCombo.editTextChanged.connect(self.OnAuthorTextChanged)
         
         # Advanced filters
         self.MinRatingSlider.valueChanged.connect(self.OnRatingChanged)
@@ -501,10 +507,30 @@ class FilterPanel(QWidget):
             if CurrentCategory:  # Skip empty category (All Categories option)
                 Criteria.Categories = [CurrentCategory]
         
-        # Author
+        # Author - handle both selection and typed text for editable ComboBox
         CurrentAuthor = self.AuthorCombo.currentData()
-        if CurrentAuthor:
-            Criteria.Authors = [CurrentAuthor]
+        CurrentAuthorText = self.AuthorCombo.currentText().strip()
+        CurrentAuthorIndex = self.AuthorCombo.currentIndex()
+        
+        # For editable ComboBox, we need to handle both data and text
+        AuthorToUse = None
+        
+        if CurrentAuthor and CurrentAuthor.strip():
+            # User selected from dropdown - use the data
+            AuthorToUse = CurrentAuthor.strip()
+        elif CurrentAuthorText and CurrentAuthorText != "All Authors":
+            # User typed something - check if it matches an existing author
+            for i in range(self.AuthorCombo.count()):
+                if self.AuthorCombo.itemText(i).strip().lower() == CurrentAuthorText.lower():
+                    AuthorToUse = self.AuthorCombo.itemData(i)
+                    break
+            
+            # If no exact match found, use the typed text as-is (user might be filtering by partial author name)
+            if not AuthorToUse and CurrentAuthorText:
+                AuthorToUse = CurrentAuthorText
+        
+        if AuthorToUse:
+            Criteria.Authors = [AuthorToUse]
         
         # Quick filters
         if self.RecentlyAddedBtn.isChecked():
@@ -596,6 +622,15 @@ class FilterPanel(QWidget):
     
     def OnSearchTimerTimeout(self):
         """Handle search timer timeout"""
+        self.OnFiltersChanged()
+    
+    def OnAuthorTextChanged(self):
+        """Handle author text changes with debouncing"""
+        self.AuthorTimer.stop()
+        self.AuthorTimer.start(500)  # 500ms delay
+    
+    def OnAuthorTimerTimeout(self):
+        """Handle author timer timeout"""
         self.OnFiltersChanged()
     
     def OnFiltersChanged(self):

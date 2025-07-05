@@ -430,8 +430,24 @@ class DatabaseManager:
             AuthorConditions = []
             for Author in Criteria.Authors:
                 if Author:  # Skip empty author names
-                    AuthorConditions.append("b.author = ?")
-                    Parameters.append(Author)
+                    # Check if this is an exact match from our authors list
+                    try:
+                        # Test if author exists exactly in database
+                        TestQuery = "SELECT 1 FROM books WHERE author = ? LIMIT 1"
+                        TestResult = self.ExecuteQuery(TestQuery, (Author,))
+                        
+                        if TestResult:
+                            # Exact match found - use exact matching
+                            AuthorConditions.append("b.author = ?")
+                            Parameters.append(Author)
+                        else:
+                            # No exact match - use partial matching for typed text
+                            AuthorConditions.append("b.author LIKE ?")
+                            Parameters.append(f"%{Author}%")
+                    except:
+                        # If test fails, default to partial matching
+                        AuthorConditions.append("b.author LIKE ?")
+                        Parameters.append(f"%{Author}%")
             
             if AuthorConditions:
                 Conditions.append(f"({' OR '.join(AuthorConditions)})")
