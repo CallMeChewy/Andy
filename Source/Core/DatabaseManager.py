@@ -20,7 +20,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 # Import our data models
-from ..Data.DatabaseModels import Book, Category, Subject, CreateBookFromRow, CreateCategoryFromRow, CreateSubjectFromRow
+from ..Data.DatabaseModels import Book, Category, Subject, SearchCriteria, CreateBookFromRow, CreateCategoryFromRow, CreateSubjectFromRow
 
 
 class DatabaseManager:
@@ -343,6 +343,134 @@ class DatabaseManager:
         """
         SearchPattern = f"%{SearchTerm}%"
         Rows = self.ExecuteQuery(Query, (SearchPattern,))
+        
+        return self._ConvertRowsToBooks(Rows)
+    
+    def SearchBooksWithCriteria(self, Criteria: SearchCriteria) -> List[Book]:
+        """
+        Search books based on comprehensive search criteria.
+        
+        Args:
+            Criteria: SearchCriteria object with all filter and sort options
+            
+        Returns:
+            List of Book objects matching all specified criteria
+        """
+        # Build the base query
+        Query = """
+            SELECT b.id, b.title, b.author, b.category_id, b.subject_id, b.FilePath, b.ThumbnailPath,
+                   c.category, s.subject
+            FROM books b
+            LEFT JOIN categories c ON b.category_id = c.id
+            LEFT JOIN subjects s ON b.subject_id = s.id
+        """
+        
+        # Build WHERE conditions
+        Conditions = []
+        Parameters = []
+        
+        # Text search conditions
+        if Criteria.SearchText:
+            TextConditions = []
+            SearchPattern = f"%{Criteria.SearchText}%"
+            
+            if Criteria.SearchTitle:
+                TextConditions.append("b.title LIKE ?")
+                Parameters.append(SearchPattern)
+            
+            if Criteria.SearchAuthor:
+                TextConditions.append("b.author LIKE ?")
+                Parameters.append(SearchPattern)
+            
+            if Criteria.SearchSubject:
+                TextConditions.append("s.subject LIKE ?")
+                Parameters.append(SearchPattern)
+            
+            if Criteria.SearchKeywords:
+                # Note: This assumes there's a keywords field in the database
+                # If not, this condition will be ignored
+                try:
+                    # Test if keywords column exists
+                    TestQuery = "SELECT 1 FROM books WHERE keywords IS NOT NULL LIMIT 1"
+                    self.ExecuteQuery(TestQuery)
+                    TextConditions.append("b.keywords LIKE ?")
+                    Parameters.append(SearchPattern)
+                except:
+                    # Keywords column doesn't exist, skip this condition
+                    pass
+            
+            if Criteria.SearchDescription:
+                # Note: This assumes there's a description field in the database
+                try:
+                    # Test if description column exists
+                    TestQuery = "SELECT 1 FROM books WHERE description IS NOT NULL LIMIT 1"
+                    self.ExecuteQuery(TestQuery)
+                    TextConditions.append("b.description LIKE ?")
+                    Parameters.append(SearchPattern)
+                except:
+                    # Description column doesn't exist, skip this condition
+                    pass
+            
+            if TextConditions:
+                Conditions.append(f"({' OR '.join(TextConditions)})")
+        
+        # Category filter - this is the key fix for the category filtering issue
+        if Criteria.Categories:
+            CategoryConditions = []
+            for Category in Criteria.Categories:
+                if Category:  # Skip empty category names
+                    CategoryConditions.append("c.category = ?")
+                    Parameters.append(Category)
+            
+            if CategoryConditions:
+                Conditions.append(f"({' OR '.join(CategoryConditions)})")
+        
+        # Author filter
+        if Criteria.Authors:
+            AuthorConditions = []
+            for Author in Criteria.Authors:
+                if Author:  # Skip empty author names
+                    AuthorConditions.append("b.author = ?")
+                    Parameters.append(Author)
+            
+            if AuthorConditions:
+                Conditions.append(f"({' OR '.join(AuthorConditions)})")
+        
+        # Subject filter
+        if Criteria.Subjects:
+            SubjectConditions = []
+            for Subject in Criteria.Subjects:
+                if Subject:  # Skip empty subject names
+                    SubjectConditions.append("s.subject = ?")
+                    Parameters.append(Subject)
+            
+            if SubjectConditions:
+                Conditions.append(f"({' OR '.join(SubjectConditions)})")
+        
+        # Build the complete query
+        if Conditions:
+            Query += " WHERE " + " AND ".join(Conditions)
+        
+        # Add sorting
+        SortField = "b.title"  # Default sort field
+        if Criteria.SortBy == "Author":
+            SortField = "b.author"
+        elif Criteria.SortBy == "Category":
+            SortField = "c.category"
+        elif Criteria.SortBy == "Subject":
+            SortField = "s.subject"
+        
+        SortOrder = "ASC" if Criteria.SortOrder.upper() == "ASC" else "DESC"
+        Query += f" ORDER BY {SortField} COLLATE NOCASE {SortOrder}"
+        
+        # Add pagination if specified
+        if Criteria.Limit:
+            Query += f" LIMIT {Criteria.Limit}"
+            if Criteria.Offset > 0:
+                Query += f" OFFSET {Criteria.Offset}"
+        
+        # Execute the query
+        Rows = self.ExecuteQuery(Query, tuple(Parameters))
         
         return self._ConvertRowsToBooks(Rows)
     

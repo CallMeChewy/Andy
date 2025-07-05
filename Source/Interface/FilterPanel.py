@@ -50,8 +50,8 @@ class FilterPanel(QWidget):
     
     def SetupUI(self):
         """Create and arrange the filter panel interface"""
-        self.setFixedWidth(280)
-        self.setMinimumHeight(600)
+        self.setFixedWidth(320)
+        self.setMinimumHeight(500)
         
         # Main layout
         MainLayout = QVBoxLayout(self)
@@ -400,145 +400,17 @@ class FilterPanel(QWidget):
     
     def ApplyStyles(self):
         """Apply consistent styling"""
+        # Use CustomWindow inherited styling with minimal overrides
         self.setStyleSheet("""
-            QWidget {
-                background-color: #3c3c3c;
-                color: #ffffff;
-                font-family: "Segoe UI", Arial, sans-serif;
-            }
-            
             QGroupBox {
                 font-weight: bold;
-                border: 2px solid #555555;
-                border-radius: 6px;
-                margin-top: 12px;
-                padding-top: 8px;
-                background-color: #2b2b2b;
-                color: #ffffff;
+                margin-top: 10px;
+                padding-top: 5px;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
-                left: 12px;
-                padding: 0 8px 0 8px;
-                color: #0078d4;
-                font-weight: bold;
-            }
-            
-            QLineEdit {
-                padding: 8px;
-                border: 2px solid #666666;
-                border-radius: 4px;
-                background-color: #4a4a4a;
-                color: #ffffff;
-                font-size: 13px;
-            }
-            QLineEdit:focus {
-                border-color: #0078d4;
-                background-color: #3c3c3c;
-            }
-            
-            QComboBox {
-                padding: 6px 12px;
-                border: 2px solid #666666;
-                border-radius: 4px;
-                background-color: #4a4a4a;
-                color: #ffffff;
-                font-size: 13px;
-                min-width: 120px;
-            }
-            QComboBox:hover {
-                border-color: #0078d4;
-                background-color: #404040;
-            }
-            QComboBox::drop-down {
-                border: none;
-                width: 20px;
-            }
-            QComboBox::down-arrow {
-                image: none;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-top: 6px solid #b0b0b0;
-                margin-right: 8px;
-            }
-            
-            QPushButton {
-                padding: 8px 16px;
-                border: 2px solid #666666;
-                border-radius: 4px;
-                background-color: #4a4a4a;
-                color: #ffffff;
-                font-weight: bold;
-                font-size: 13px;
-            }
-            QPushButton:hover {
-                background-color: #404040;
-                border-color: #0078d4;
-            }
-            QPushButton:pressed {
-                background-color: #005a9e;
-                border-color: #0078d4;
-            }
-            QPushButton:checked {
-                background-color: #0078d4;
-                color: #ffffff;
-                border-color: #106ebe;
-            }
-            
-            QCheckBox {
-                color: #ffffff;
-                font-size: 13px;
-                spacing: 8px;
-            }
-            QCheckBox::indicator {
-                width: 16px;
-                height: 16px;
-                border: 2px solid #666666;
-                border-radius: 3px;
-                background-color: #4a4a4a;
-            }
-            QCheckBox::indicator:hover {
-                border-color: #0078d4;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #0078d4;
-                border-color: #0078d4;
-            }
-            
-            QSlider::groove:horizontal {
-                height: 6px;
-                background: #333333;
-                border-radius: 3px;
-            }
-            QSlider::handle:horizontal {
-                background: #0078d4;
-                border: 2px solid #106ebe;
-                width: 16px;
-                border-radius: 8px;
-                margin: -6px 0;
-            }
-            QSlider::handle:horizontal:hover {
-                background: #106ebe;
-            }
-            
-            QListWidget {
-                background-color: #4a4a4a;
-                border: 2px solid #666666;
-                border-radius: 4px;
-                color: #ffffff;
-                font-size: 13px;
-                outline: none;
-            }
-            QListWidget::item {
-                padding: 6px;
-                border-bottom: 1px solid #333333;
-            }
-            QListWidget::item:hover {
-                background-color: #404040;
-            }
-            QListWidget::item:selected {
-                background-color: #0078d4;
-                color: #ffffff;
+                left: 10px;
+                padding: 0 5px 0 5px;
             }
         """)
     
@@ -621,11 +493,12 @@ class FilterPanel(QWidget):
         if self.MultipleCategoriesCheck.isChecked():
             # Multiple selection from list
             SelectedItems = self.CategoryList.selectedItems()
-            Criteria.Categories = [item.data(Qt.ItemDataRole.UserRole) for item in SelectedItems]
+            Criteria.Categories = [item.data(Qt.ItemDataRole.UserRole) for item in SelectedItems 
+                                 if item.data(Qt.ItemDataRole.UserRole)]
         else:
             # Single selection from combo
             CurrentCategory = self.CategoryCombo.currentData()
-            if CurrentCategory:
+            if CurrentCategory:  # Skip empty category (All Categories option)
                 Criteria.Categories = [CurrentCategory]
         
         # Author

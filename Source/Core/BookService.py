@@ -71,10 +71,9 @@ class BookService:
             SearchResult object with the list of books and search metadata.
         """
         try:
-            # This search is simplified and only uses the text search for now.
-            # A more complete implementation would build a dynamic query based on all criteria.
-            Books = self.Database.SearchBooks(Criteria.SearchText)
-            return SearchResult(Books=Books, Success=True)
+            # Pass complete search criteria to database manager
+            Books = self.Database.SearchBooksWithCriteria(Criteria)
+            return SearchResult(Books=Books, Success=True, SearchCriteria=Criteria)
         except Exception as e:
             self.Logger.error(f"Error searching books: {e}")
             return SearchResult(Success=False, ErrorMessage=str(e))
