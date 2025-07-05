@@ -4,8 +4,9 @@
 # Created: 2025-07-05
 # Last Modified: 2025-07-05  01:34PM
 """
-Description: Enhanced Main Window with Icons and Improved Styling
-Standard Qt design with Assets/ folder icons and enhanced visual elements.
+Description: Main Application Window for Anderson's Library - Standard Qt Design
+Uses standard QMainWindow instead of CustomWindow framework.
+Maintains original blue gradient theme and functionality.
 """
 
 import sys
@@ -18,9 +19,10 @@ from PySide6.QtWidgets import (
     QSplitter, QStatusBar, QMessageBox
 )
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtGui import QIcon
 
 # Import our modules
+sys.path.append(str(Path(__file__).parent.parent))
 from Source.Core.DatabaseManager import DatabaseManager
 from Source.Core.BookService import BookService
 from Source.Interface.FilterPanel import FilterPanel
@@ -28,12 +30,18 @@ from Source.Interface.BookGrid import BookGrid
 
 
 class MainWindow(QMainWindow):
-    """Enhanced main window with icons and improved styling."""
+    """
+    Main application window using standard Qt design.
+    Orchestrates FilterPanel and BookGrid components.
+    """
     
     def __init__(self, DatabasePath: str = "Assets/my_library.db"):
         super().__init__()
         
+        # Set up logging
         self.Logger = logging.getLogger(__name__)
+        
+        # Store database path
         self.DatabasePath = DatabasePath
         
         # Initialize components
@@ -44,36 +52,27 @@ class MainWindow(QMainWindow):
         
         # Initialize UI
         self._InitializeWindow()
-        self._ApplyEnhancedStyling()
+        self._ApplyOriginalStyling()
         self._InitializeServices()
         self._SetupUI()
         self._ConnectSignals()
         
-        self.Logger.info("Enhanced main window initialized")
+        self.Logger.info("Main window initialized successfully")
     
     def _InitializeWindow(self) -> None:
-        """Initialize window with icon and properties"""
+        """Initialize basic window properties"""
         self.setWindowTitle("Anderson's Library")
         self.setMinimumSize(1000, 600)
         
-        # Set multiple icon sizes for better display
-        IconPaths = [
-            Path("Assets/icon.png"),
-            Path("Assets/BowersWorld.png"),
-            Path("Assets/library/icon.png")
-        ]
-        
-        for IconPath in IconPaths:
-            if IconPath.exists():
-                self.setWindowIcon(QIcon(str(IconPath)))
-                self.Logger.info(f"Set window icon: {IconPath}")
-                break
+        # Set window icon if available
+        IconPath = Path("Assets/icon.png")
+        if IconPath.exists():
+            self.setWindowIcon(QIcon(str(IconPath)))
     
-    def _ApplyEnhancedStyling(self) -> None:
-        """Apply enhanced styling with better visual hierarchy"""
+    def _ApplyOriginalStyling(self) -> None:
+        """Apply the original blue gradient theme from Legacy/Andy.py"""
         self.setStyleSheet("""
-            /* Main window gradient background */
-            QMainWindow {
+            * {
                 background-color: qlineargradient(
                     spread:repeat, x1:1, y1:0, x2:1, y2:1, 
                     stop:0.00480769 rgba(3, 50, 76, 255), 
@@ -83,54 +82,38 @@ class MainWindow(QMainWindow):
                     stop:1 rgba(3, 51, 77, 255)
                 );
                 color: #FFFFFF;
+                border: none;
+            }
+
+            QComboBox::down-arrow {
+                image: url(Assets/arrow.png);
+            }
+
+            QComboBox::item:hover, QListView::item:hover {
+                border: 3px solid red;
             }
             
-            /* Splitter styling */
-            QSplitter::handle {
-                background-color: rgba(255, 255, 255, 0.3);
-                border: 1px solid rgba(255, 255, 255, 0.5);
+            QToolTip { 
+                color: #ffffff; 
+                border: none; 
+                font-size: 16px; 
             }
             
-            QSplitter::handle:hover {
-                background-color: rgba(255, 255, 255, 0.5);
-            }
-            
-            /* Status bar enhancement */
             QStatusBar {
                 background-color: #780000; 
                 color: white;
-                font-weight: bold;
-                border-top: 2px solid #aa0000;
-            }
-            
-            /* Scroll area enhancements */
-            QScrollArea {
-                border: none;
-                background-color: transparent;
-            }
-            
-            QScrollBar:vertical {
-                background-color: rgba(255, 255, 255, 0.1);
-                width: 12px;
-                border-radius: 6px;
-            }
-            
-            QScrollBar::handle:vertical {
-                background-color: rgba(255, 255, 255, 0.3);
-                border-radius: 6px;
-                min-height: 20px;
-            }
-            
-            QScrollBar::handle:vertical:hover {
-                background-color: rgba(255, 255, 255, 0.5);
             }
         """)
     
     def _InitializeServices(self) -> None:
-        """Initialize database and business services"""
+        """Initialize database and business logic services"""
         try:
+            # Initialize database connection
             self.DatabaseManager = DatabaseManager(self.DatabasePath)
+            
+            # Initialize book service
             self.BookService = BookService(self.DatabaseManager)
+            
             self.Logger.info("Services initialized successfully")
             
         except Exception as Error:
@@ -143,7 +126,7 @@ class MainWindow(QMainWindow):
             raise
     
     def _SetupUI(self) -> None:
-        """Set up enhanced user interface"""
+        """Set up the user interface components"""
         # Create central widget
         CentralWidget = QWidget()
         self.setCentralWidget(CentralWidget)
@@ -156,63 +139,85 @@ class MainWindow(QMainWindow):
         self.Splitter = QSplitter(Qt.Horizontal)
         MainLayout.addWidget(self.Splitter)
         
-        # Create enhanced filter panel
+        # Create filter panel (left side)
         self.FilterPanel = FilterPanel(self.BookService)
         self.FilterPanel.setMinimumWidth(320)
         self.FilterPanel.setMaximumWidth(400)
         self.Splitter.addWidget(self.FilterPanel)
         
-        # Create book grid
+        # Create book grid (right side)
         self.BookGrid = BookGrid(self.BookService)
         self.Splitter.addWidget(self.BookGrid)
         
         # Set splitter proportions (25% filter, 75% books)
         self.Splitter.setSizes([350, 1050])
-        self.Splitter.setStretchFactor(0, 0)  
-        self.Splitter.setStretchFactor(1, 1)  
+        self.Splitter.setStretchFactor(0, 0)  # Filter panel doesn't stretch
+        self.Splitter.setStretchFactor(1, 1)  # Book grid stretches
+        
+        # Prevent filter panel from being collapsed
         self.Splitter.setCollapsible(0, False)
         
-        # Enhanced status bar
+        # Create status bar
         self.StatusBar = QStatusBar()
         self.setStatusBar(self.StatusBar)
-        self.StatusBar.showMessage("🚀 Anderson's Library - Ready to explore your collection!")
+        self.StatusBar.showMessage("Ready - Use search and filters to find books")
         
-        self.Logger.info("Enhanced UI components created")
+        self.Logger.info("UI components created successfully")
     
     def _ConnectSignals(self) -> None:
-        """Connect component signals"""
+        """Connect signals between components"""
         if self.FilterPanel and self.BookGrid:
+            # Connect search/filter signals
             self.FilterPanel.SearchRequested.connect(self.BookGrid.FilterBooks)
             self.FilterPanel.FilterChanged.connect(self.BookGrid.FilterBooks)
+            
+            # Connect status updates
             self.BookGrid.StatusUpdate.connect(self.StatusBar.showMessage)
+            
             self.Logger.info("Component signals connected")
     
     def resizeEvent(self, Event) -> None:
-        """Handle window resize with grid refresh"""
+        """Handle window resize events"""
         super().resizeEvent(Event)
+        
+        # Trigger book grid layout recalculation with small delay
         if self.BookGrid:
             QTimer.singleShot(50, self.BookGrid.RefreshLayout)
     
     def closeEvent(self, Event) -> None:
-        """Handle application close"""
+        """Handle window close events"""
         try:
             self.Logger.info("Application closing")
             Event.accept()
+            
         except Exception as Error:
-            self.Logger.error(f"Error during close: {Error}")
-            Event.accept()
+            self.Logger.error(f"Error during application close: {Error}")
+            Event.accept()  # Close anyway
 
 
 def CreateAndShowMainWindow(DatabasePath: str = "Assets/my_library.db") -> MainWindow:
-    """Create and show the enhanced main window."""
+    """
+    Factory function to create and display the main application window.
+    
+    Args:
+        DatabasePath: Path to SQLite database file
+        
+    Returns:
+        MainWindow instance
+    """
     try:
+        # Configure logging
         logging.basicConfig(
             level=logging.INFO,
             format='[%(asctime)s] %(name)s - %(levelname)s: %(message)s'
         )
         
+        # Create main window
         MainWindowInstance = MainWindow(DatabasePath)
+        
+        # Show maximized (matching original behavior)
         MainWindowInstance.showMaximized()
+        
         return MainWindowInstance
         
     except Exception as Error:
@@ -221,17 +226,26 @@ def CreateAndShowMainWindow(DatabasePath: str = "Assets/my_library.db") -> MainW
 
 
 def RunApplication() -> int:
-    """Run the enhanced application."""
+    """
+    Run the complete Anderson's Library application with standard Qt design.
+    
+    Returns:
+        Application exit code
+    """
     try:
+        # Create QApplication
         App = QApplication.instance()
         if App is None:
             App = QApplication(sys.argv)
         
+        # Create and show main window
         MainWindowInstance = CreateAndShowMainWindow()
+        
+        # Run the event loop
         return App.exec()
         
     except Exception as Error:
-        logging.error(f"Application failed: {Error}")
+        logging.error(f"Application failed to run: {Error}")
         return 1
 
 

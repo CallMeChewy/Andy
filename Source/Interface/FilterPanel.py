@@ -1,682 +1,409 @@
 # File: FilterPanel.py
 # Path: Source/Interface/FilterPanel.py
 # Standard: AIDEV-PascalCase-1.8
-# Created: 2025-07-04
-# Last Modified: 2025-07-04  04:12PM
+# Created: 2025-07-05
+# Last Modified: 2025-07-05  01:34PM
 """
-Description: Filter Panel Component for Anderson's Library
-Provides the left sidebar interface for searching and filtering books.
-Includes text search, category filters, author filters, and advanced options.
+Description: Enhanced Filter Panel with Category-Filtered Subjects and Icons
+Features category-filtered subjects, flat label backgrounds, and Assets/ icons.
 """
 
 import logging
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                               QLineEdit, QPushButton, QComboBox, QCheckBox,
-                               QGroupBox, QScrollArea, QButtonGroup, QFrame,
-                               QSlider, QSpinBox, QDateEdit, QListWidget,
-                               QListWidgetItem, QSizePolicy)
-from PySide6.QtCore import Qt, Signal, QDate, QTimer
-from PySide6.QtGui import QFont, QPalette, QIcon
-from typing import List, Dict, Optional, Callable
-from ..Data.DatabaseModels import SearchCriteria, CategoryInfo
+from typing import Optional, List
+from pathlib import Path
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QLineEdit, QComboBox, 
+    QLabel, QFrame, QHBoxLayout
+)
+from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtGui import QFont, QIcon, QPixmap
+
+from Source.Core.BookService import BookService
+from Source.Data.DatabaseModels import SearchCriteria
 
 
 class FilterPanel(QWidget):
     """
-    Left sidebar panel providing search and filter functionality.
-    Emits signals when search criteria changes to trigger book grid updates.
+    Enhanced filter panel with category-filtered subjects and icons.
     """
     
     # Signals
-    SearchRequested = Signal(object)  # SearchCriteria
-    FiltersChanged = Signal(object)   # SearchCriteria
-    ClearRequested = Signal()
+    SearchRequested = Signal(object)  # SearchCriteria object
+    FilterChanged = Signal(object)    # SearchCriteria object  
+    BookSelected = Signal(str)        # Book title (for compatibility)
     
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.SetupUI()
-        self.SetupConnections()
-        self.LoadInitialData()
+    def __init__(self, BookServiceInstance: BookService, Parent=None):
+        """Initialize enhanced filter panel."""
+        super().__init__(Parent)
         
-        # Search debouncing
+        self.BookService = BookServiceInstance
+        self.Logger = logging.getLogger(__name__)
+        
+        # UI Components
+        self.SearchLineEdit: Optional[QLineEdit] = None
+        self.CategoryComboBox: Optional[QComboBox] = None
+        self.SubjectComboBox: Optional[QComboBox] = None
+        
+        # Data storage
+        self.AllCategories: List = []
+        self.AllSubjects: List = []
+        self.CategorySubjectsMap: dict = {}  # category_id -> [subjects]
+        
+        # Search timer
         self.SearchTimer = QTimer()
         self.SearchTimer.setSingleShot(True)
-        self.SearchTimer.timeout.connect(self.OnSearchTimerTimeout)
+        self.SearchTimer.timeout.connect(self._PerformSearch)
         
-        # Author filter debouncing for editable ComboBox
-        self.AuthorTimer = QTimer()
-        self.AuthorTimer.setSingleShot(True)
-        self.AuthorTimer.timeout.connect(self.OnAuthorTimerTimeout)
+        # Setup
+        self._SetupUI()
+        self._LoadInitialData()
+        self._ConnectSignals()
         
-        # Current filter state
-        self.CurrentCriteria = SearchCriteria()
-        
-        logging.info("FilterPanel initialized")
+        self.Logger.info("Enhanced FilterPanel initialized")
     
-    def SetupUI(self):
-        """Create and arrange the filter panel interface"""
-        self.setFixedWidth(320)
-        self.setMinimumHeight(500)
-        
+    def _SetupUI(self) -> None:
+        """Create enhanced UI with flat labels and icons"""
         # Main layout
-        MainLayout = QVBoxLayout(self)
-        MainLayout.setContentsMargins(10, 10, 10, 10)
-        MainLayout.setSpacing(15)
+        Layout = QVBoxLayout(self)
+        Layout.setContentsMargins(15, 15, 15, 15)
+        Layout.setSpacing(15)
         
-        # Header
-        self.CreateHeaderSection(MainLayout)
+        # Title with icon
+        TitleLayout = QHBoxLayout()
         
-        # Search section
-        self.CreateSearchSection(MainLayout)
+        # Title icon
+        TitleIcon = QLabel()
+        IconPath = Path("Assets/icon.png")
+        if IconPath.exists():
+            Pixmap = QPixmap(str(IconPath))
+            ScaledPixmap = Pixmap.scaled(24, 24, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            TitleIcon.setPixmap(ScaledPixmap)
+        else:
+            TitleIcon.setText("📚")
         
-        # Quick filters
-        self.CreateQuickFiltersSection(MainLayout)
-        
-        # Category filters
-        self.CreateCategorySection(MainLayout)
-        
-        # Author filters  
-        self.CreateAuthorSection(MainLayout)
-        
-        # Advanced filters
-        self.CreateAdvancedSection(MainLayout)
-        
-        # Action buttons
-        self.CreateActionSection(MainLayout)
-        
-        # Stretch to push everything to top
-        MainLayout.addStretch()
-        
-        # Apply styling
-        self.ApplyStyles()
-    
-    def CreateHeaderSection(self, Layout: QVBoxLayout):
-        """Create the header with title and stats"""
-        HeaderFrame = QFrame()
-        HeaderLayout = QVBoxLayout(HeaderFrame)
-        HeaderLayout.setContentsMargins(0, 0, 0, 0)
-        
-        # Title
-        TitleLabel = QLabel("📚 Library Filters")
-        TitleLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        TitleLabel = QLabel(" Options")
         TitleFont = QFont()
         TitleFont.setPointSize(14)
         TitleFont.setBold(True)
         TitleLabel.setFont(TitleFont)
-        HeaderLayout.addWidget(TitleLabel)
         
-        # Stats label
-        self.StatsLabel = QLabel("Loading...")
-        self.StatsLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.StatsLabel.setStyleSheet("color: #666; font-size: 11px;")
-        HeaderLayout.addWidget(self.StatsLabel)
+        TitleLayout.addWidget(TitleIcon)
+        TitleLayout.addWidget(TitleLabel)
+        TitleLayout.addStretch()
         
-        Layout.addWidget(HeaderFrame)
-    
-    def CreateSearchSection(self, Layout: QVBoxLayout):
-        """Create the text search section"""
-        SearchGroup = QGroupBox("🔍 Search")
-        SearchLayout = QVBoxLayout(SearchGroup)
+        Layout.addLayout(TitleLayout)
         
-        # Main search box
-        self.SearchEdit = QLineEdit()
-        self.SearchEdit.setPlaceholderText("Search titles, authors, subjects...")
-        self.SearchEdit.setClearButtonEnabled(True)
-        SearchLayout.addWidget(self.SearchEdit)
+        # Separator
+        Separator = QFrame()
+        Separator.setFrameShape(QFrame.HLine)
+        Layout.addWidget(Separator)
         
-        # Search field options
-        FieldsFrame = QFrame()
-        FieldsLayout = QVBoxLayout(FieldsFrame)
-        FieldsLayout.setContentsMargins(0, 0, 0, 0)
-        FieldsLayout.setSpacing(5)
+        # Category section with icon
+        CategoryLayout = QHBoxLayout()
+        CategoryIconLabel = QLabel()
+        CategoryIconLabel.setText("🗂️")  # Folder icon
+        CategoryIconLabel.setFixedWidth(20)
         
-        self.SearchTitleCheck = QCheckBox("Search in titles")
-        self.SearchTitleCheck.setChecked(True)
-        FieldsLayout.addWidget(self.SearchTitleCheck)
-        
-        self.SearchAuthorCheck = QCheckBox("Search in authors")
-        self.SearchAuthorCheck.setChecked(True)
-        FieldsLayout.addWidget(self.SearchAuthorCheck)
-        
-        self.SearchSubjectCheck = QCheckBox("Search in subjects")
-        self.SearchSubjectCheck.setChecked(True)
-        FieldsLayout.addWidget(self.SearchSubjectCheck)
-        
-        self.SearchKeywordsCheck = QCheckBox("Search in keywords")
-        self.SearchKeywordsCheck.setChecked(True)
-        FieldsLayout.addWidget(self.SearchKeywordsCheck)
-        
-        self.SearchDescriptionCheck = QCheckBox("Search in descriptions")
-        self.SearchDescriptionCheck.setChecked(False)
-        FieldsLayout.addWidget(self.SearchDescriptionCheck)
-        
-        SearchLayout.addWidget(FieldsFrame)
-        Layout.addWidget(SearchGroup)
-    
-    def CreateQuickFiltersSection(self, Layout: QVBoxLayout):
-        """Create quick filter buttons"""
-        QuickGroup = QGroupBox("⚡ Quick Filters")
-        QuickLayout = QVBoxLayout(QuickGroup)
-        
-        # Row 1
-        Row1Layout = QHBoxLayout()
-        self.RecentlyAddedBtn = QPushButton("Recent")
-        self.RecentlyAddedBtn.setCheckable(True)
-        self.HighRatedBtn = QPushButton("★★★★+")
-        self.HighRatedBtn.setCheckable(True)
-        Row1Layout.addWidget(self.RecentlyAddedBtn)
-        Row1Layout.addWidget(self.HighRatedBtn)
-        QuickLayout.addLayout(Row1Layout)
-        
-        # Row 2
-        Row2Layout = QHBoxLayout()
-        self.UnreadBtn = QPushButton("Unread")
-        self.UnreadBtn.setCheckable(True)
-        self.LargeFilesBtn = QPushButton("Large Files")
-        self.LargeFilesBtn.setCheckable(True)
-        Row2Layout.addWidget(self.UnreadBtn)
-        Row2Layout.addWidget(self.LargeFilesBtn)
-        QuickLayout.addLayout(Row2Layout)
-        
-        Layout.addWidget(QuickGroup)
-    
-    def CreateCategorySection(self, Layout: QVBoxLayout):
-        """Create category filter section"""
-        CategoryGroup = QGroupBox("📂 Categories")
-        CategoryLayout = QVBoxLayout(CategoryGroup)
-        
-        # Category dropdown
-        self.CategoryCombo = QComboBox()
-        self.CategoryCombo.addItem("All Categories", "")
-        CategoryLayout.addWidget(self.CategoryCombo)
-        
-        # Category list for multiple selection
-        self.CategoryList = QListWidget()
-        self.CategoryList.setMaximumHeight(120)
-        self.CategoryList.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
-        CategoryLayout.addWidget(self.CategoryList)
-        
-        # Show/hide multiple selection
-        self.MultipleCategoriesCheck = QCheckBox("Multiple selection")
-        self.MultipleCategoriesCheck.toggled.connect(self.OnMultipleCategoriesToggled)
-        CategoryLayout.addWidget(self.MultipleCategoriesCheck)
-        
-        # Initially hide the list
-        self.CategoryList.hide()
-        
-        Layout.addWidget(CategoryGroup)
-    
-    def CreateAuthorSection(self, Layout: QVBoxLayout):
-        """Create author filter section"""
-        AuthorGroup = QGroupBox("👤 Authors")
-        AuthorLayout = QVBoxLayout(AuthorGroup)
-        
-        # Author dropdown
-        self.AuthorCombo = QComboBox()
-        self.AuthorCombo.addItem("All Authors", "")
-        self.AuthorCombo.setEditable(True)
-        self.AuthorCombo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-        AuthorLayout.addWidget(self.AuthorCombo)
-        
-        # Popular authors quick buttons
-        self.PopularAuthorsFrame = QFrame()
-        self.PopularAuthorsLayout = QVBoxLayout(self.PopularAuthorsFrame)
-        self.PopularAuthorsLayout.setContentsMargins(0, 0, 0, 0)
-        AuthorLayout.addWidget(self.PopularAuthorsFrame)
-        
-        Layout.addWidget(AuthorGroup)
-    
-    def CreateAdvancedSection(self, Layout: QVBoxLayout):
-        """Create advanced filters section"""
-        AdvancedGroup = QGroupBox("⚙️ Advanced")
-        AdvancedLayout = QVBoxLayout(AdvancedGroup)
-        
-        # Make it collapsible
-        AdvancedGroup.setCheckable(True)
-        AdvancedGroup.setChecked(False)
-        
-        # Rating filter
-        RatingFrame = QFrame()
-        RatingLayout = QHBoxLayout(RatingFrame)
-        RatingLayout.addWidget(QLabel("Rating:"))
-        
-        self.MinRatingSlider = QSlider(Qt.Orientation.Horizontal)
-        self.MinRatingSlider.setRange(0, 5)
-        self.MinRatingSlider.setValue(0)
-        RatingLayout.addWidget(self.MinRatingSlider)
-        
-        self.RatingLabel = QLabel("0-5")
-        RatingLayout.addWidget(self.RatingLabel)
-        AdvancedLayout.addWidget(RatingFrame)
-        
-        # Page count filter
-        PageFrame = QFrame()
-        PageLayout = QHBoxLayout(PageFrame)
-        PageLayout.addWidget(QLabel("Pages:"))
-        
-        self.MinPagesSpinBox = QSpinBox()
-        self.MinPagesSpinBox.setRange(0, 9999)
-        self.MinPagesSpinBox.setSpecialValueText("Any")
-        PageLayout.addWidget(self.MinPagesSpinBox)
-        
-        PageLayout.addWidget(QLabel("to"))
-        
-        self.MaxPagesSpinBox = QSpinBox()
-        self.MaxPagesSpinBox.setRange(0, 9999)
-        self.MaxPagesSpinBox.setValue(9999)
-        self.MaxPagesSpinBox.setSpecialValueText("Any")
-        PageLayout.addWidget(self.MaxPagesSpinBox)
-        AdvancedLayout.addWidget(PageFrame)
-        
-        # Date filter
-        DateFrame = QFrame()
-        DateLayout = QVBoxLayout(DateFrame)
-        DateLayout.addWidget(QLabel("Date Added:"))
-        
-        DateRangeLayout = QHBoxLayout()
-        self.DateFromEdit = QDateEdit()
-        self.DateFromEdit.setDate(QDate.currentDate().addYears(-1))
-        self.DateFromEdit.setCalendarPopup(True)
-        DateRangeLayout.addWidget(self.DateFromEdit)
-        
-        DateRangeLayout.addWidget(QLabel("to"))
-        
-        self.DateToEdit = QDateEdit()
-        self.DateToEdit.setDate(QDate.currentDate())
-        self.DateToEdit.setCalendarPopup(True)
-        DateRangeLayout.addWidget(self.DateToEdit)
-        
-        DateLayout.addLayout(DateRangeLayout)
-        
-        self.DateFilterCheck = QCheckBox("Enable date filter")
-        self.DateFilterCheck.toggled.connect(self.OnDateFilterToggled)
-        DateLayout.addWidget(self.DateFilterCheck)
-        AdvancedLayout.addWidget(DateFrame)
-        
-        # File format filter
-        FormatFrame = QFrame()
-        FormatLayout = QVBoxLayout(FormatFrame)
-        FormatLayout.addWidget(QLabel("File Format:"))
-        
-        self.PdfCheck = QCheckBox("PDF")
-        self.PdfCheck.setChecked(True)
-        FormatLayout.addWidget(self.PdfCheck)
-        
-        self.EpubCheck = QCheckBox("EPUB")
-        FormatLayout.addWidget(self.EpubCheck)
-        
-        self.MobiCheck = QCheckBox("MOBI")
-        FormatLayout.addWidget(self.MobiCheck)
-        AdvancedLayout.addWidget(FormatFrame)
-        
-        # Initially disable date controls
-        self.OnDateFilterToggled(False)
-        
-        Layout.addWidget(AdvancedGroup)
-    
-    def CreateActionSection(self, Layout: QVBoxLayout):
-        """Create action buttons"""
-        ActionFrame = QFrame()
-        ActionLayout = QVBoxLayout(ActionFrame)
-        ActionLayout.setSpacing(10)
-        
-        # Search button
-        self.SearchButton = QPushButton("🔍 Search")
-        self.SearchButton.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                border: none;
-                padding: 8px;
-                border-radius: 4px;
+        CategoryTextLabel = QLabel("Category:")
+        CategoryTextLabel.setStyleSheet("""
+            QLabel {
+                background-color: rgba(50, 100, 150, 180);
+                color: #ffffff;
+                padding: 4px 8px;
+                border-radius: 3px;
                 font-weight: bold;
             }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-            QPushButton:pressed {
-                background-color: #0D47A1;
+        """)
+        
+        CategoryLayout.addWidget(CategoryIconLabel)
+        CategoryLayout.addWidget(CategoryTextLabel)
+        CategoryLayout.addStretch()
+        Layout.addLayout(CategoryLayout)
+        
+        self.CategoryComboBox = QComboBox()
+        self.CategoryComboBox.addItem("All Categories")
+        Layout.addWidget(self.CategoryComboBox)
+        
+        # Subject section with icon  
+        SubjectLayout = QHBoxLayout()
+        SubjectIconLabel = QLabel()
+        SubjectIconLabel.setText("📋")  # List icon
+        SubjectIconLabel.setFixedWidth(20)
+        
+        SubjectTextLabel = QLabel("Subject:")
+        SubjectTextLabel.setStyleSheet("""
+            QLabel {
+                background-color: rgba(50, 100, 150, 180);
+                color: #ffffff;
+                padding: 4px 8px;
+                border-radius: 3px;
+                font-weight: bold;
             }
         """)
-        ActionLayout.addWidget(self.SearchButton)
         
-        # Clear button
-        self.ClearButton = QPushButton("🗑️ Clear All")
-        self.ClearButton.setStyleSheet("""
-            QPushButton {
-                background-color: #FF5722;
-                color: white;
-                border: none;
-                padding: 8px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #D84315;
+        SubjectLayout.addWidget(SubjectIconLabel)
+        SubjectLayout.addWidget(SubjectTextLabel)
+        SubjectLayout.addStretch()
+        Layout.addLayout(SubjectLayout)
+        
+        self.SubjectComboBox = QComboBox()
+        self.SubjectComboBox.addItem("All Subjects")
+        Layout.addWidget(self.SubjectComboBox)
+        
+        # Search section with icon
+        SearchLayout = QHBoxLayout()
+        SearchIconLabel = QLabel()
+        SearchIconLabel.setText("🔍")  # Search icon
+        SearchIconLabel.setFixedWidth(20)
+        
+        SearchTextLabel = QLabel("Search:")
+        SearchTextLabel.setStyleSheet("""
+            QLabel {
+                background-color: rgba(50, 100, 150, 180);
+                color: #ffffff;
+                padding: 4px 8px;
+                border-radius: 3px;
+                font-weight: bold;
             }
         """)
-        ActionLayout.addWidget(self.ClearButton)
         
-        # Results count
-        self.ResultsLabel = QLabel("Ready to search")
-        self.ResultsLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.ResultsLabel.setStyleSheet("color: #666; font-size: 11px; margin-top: 5px;")
-        ActionLayout.addWidget(self.ResultsLabel)
+        SearchLayout.addWidget(SearchIconLabel)
+        SearchLayout.addWidget(SearchTextLabel)
+        SearchLayout.addStretch()
+        Layout.addLayout(SearchLayout)
         
-        Layout.addWidget(ActionFrame)
+        self.SearchLineEdit = QLineEdit()
+        self.SearchLineEdit.setPlaceholderText("Type Something Here")
+        Layout.addWidget(self.SearchLineEdit)
+        
+        # Add stretch
+        Layout.addStretch()
+        
+        # Set fixed width and apply enhanced styling
+        self.setFixedWidth(320)
+        self._ApplyEnhancedStyling()
     
-    def SetupConnections(self):
-        """Connect signals and slots"""
-        # Search text with debouncing
-        self.SearchEdit.textChanged.connect(self.OnSearchTextChanged)
-        
-        # Search field checkboxes
-        self.SearchTitleCheck.toggled.connect(self.OnFiltersChanged)
-        self.SearchAuthorCheck.toggled.connect(self.OnFiltersChanged)
-        self.SearchSubjectCheck.toggled.connect(self.OnFiltersChanged)
-        self.SearchKeywordsCheck.toggled.connect(self.OnFiltersChanged)
-        self.SearchDescriptionCheck.toggled.connect(self.OnFiltersChanged)
-        
-        # Quick filters
-        self.RecentlyAddedBtn.toggled.connect(self.OnFiltersChanged)
-        self.HighRatedBtn.toggled.connect(self.OnFiltersChanged)
-        self.UnreadBtn.toggled.connect(self.OnFiltersChanged)
-        self.LargeFilesBtn.toggled.connect(self.OnFiltersChanged)
-        
-        # Category filters
-        self.CategoryCombo.currentTextChanged.connect(self.OnFiltersChanged)
-        self.CategoryList.itemSelectionChanged.connect(self.OnFiltersChanged)
-        
-        # Author filter - use both signals for editable ComboBox
-        self.AuthorCombo.currentIndexChanged.connect(self.OnFiltersChanged)
-        self.AuthorCombo.editTextChanged.connect(self.OnAuthorTextChanged)
-        
-        # Advanced filters
-        self.MinRatingSlider.valueChanged.connect(self.OnRatingChanged)
-        self.MinPagesSpinBox.valueChanged.connect(self.OnFiltersChanged)
-        self.MaxPagesSpinBox.valueChanged.connect(self.OnFiltersChanged)
-        self.DateFromEdit.dateChanged.connect(self.OnFiltersChanged)
-        self.DateToEdit.dateChanged.connect(self.OnFiltersChanged)
-        self.PdfCheck.toggled.connect(self.OnFiltersChanged)
-        self.EpubCheck.toggled.connect(self.OnFiltersChanged)
-        self.MobiCheck.toggled.connect(self.OnFiltersChanged)
-        
-        # Action buttons
-        self.SearchButton.clicked.connect(self.OnSearchClicked)
-        self.ClearButton.clicked.connect(self.OnClearClicked)
-    
-    def ApplyStyles(self):
-        """Apply consistent styling"""
-        # Use CustomWindow inherited styling with minimal overrides
+    def _ApplyEnhancedStyling(self) -> None:
+        """Apply enhanced styling with flat backgrounds and custom dropdown arrows"""
         self.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                margin-top: 10px;
-                padding-top: 5px;
+            /* Combo box styling with custom arrow */
+            QComboBox {
+                padding: 8px;
+                border: 2px solid #555;
+                border-radius: 4px;
+                background-color: rgba(255, 255, 255, 0.1);
+                color: #ffffff;
+                font-size: 12px;
+                min-height: 20px;
             }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
+            
+            QComboBox:hover {
+                border-color: #0078d4;
+                background-color: rgba(255, 255, 255, 0.15);
+            }
+            
+            QComboBox:focus {
+                border-color: #ffffff;
+                background-color: rgba(255, 255, 255, 0.2);
+            }
+            
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            
+            QComboBox::down-arrow {
+                image: url(Assets/arrow.png);
+                width: 12px;
+                height: 12px;
+            }
+            
+            QComboBox QAbstractItemView {
+                border: 2px solid #555;
+                border-radius: 4px;
+                background-color: rgba(20, 40, 60, 240);
+                color: #ffffff;
+                selection-background-color: #ff4444;
+                selection-color: #ffffff;
+            }
+            
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #ff4444;
+                color: #ffffff;
+            }
+            
+            /* Search box styling */
+            QLineEdit {
+                padding: 8px;
+                border: 2px solid #555;
+                border-radius: 4px;
+                background-color: rgba(255, 255, 255, 0.1);
+                color: #ffffff;
+                font-size: 12px;
+            }
+            
+            QLineEdit:focus {
+                border-color: #ffffff;
+                background-color: rgba(255, 255, 255, 0.2);
+            }
+            
+            QLineEdit::placeholder {
+                color: #cccccc;
+                font-style: italic;
             }
         """)
     
-    def LoadInitialData(self):
-        """Load initial filter data"""
-        # This will be called by the main window to populate categories and authors
-        pass
-    
-    def UpdateCategories(self, Categories: List[CategoryInfo]):
-        """Update the category filter options"""
-        # Clear existing
-        self.CategoryCombo.clear()
-        self.CategoryList.clear()
-        
-        # Add "All Categories" option
-        self.CategoryCombo.addItem("All Categories", "")
-        
-        # Add categories
-        for Category in Categories:
-            DisplayName = Category.GetDisplayName()
-            self.CategoryCombo.addItem(DisplayName, Category.Name)
+    def _LoadInitialData(self) -> None:
+        """Load categories and build category->subjects mapping"""
+        try:
+            # Load all categories
+            self.AllCategories = self.BookService.Database.GetAllCategories()
+            for Category in self.AllCategories:
+                self.CategoryComboBox.addItem(Category.Name)
             
-            ListItem = QListWidgetItem(DisplayName)
-            ListItem.setData(Qt.ItemDataRole.UserRole, Category.Name)
-            self.CategoryList.addItem(ListItem)
+            # Load all subjects and build category mapping
+            self.AllSubjects = self.BookService.Database.GetAllSubjects()
+            
+            # Build category ID to subjects mapping
+            self.CategorySubjectsMap = {}
+            for Subject in self.AllSubjects:
+                CategoryId = getattr(Subject, 'CategoryId', None)
+                if CategoryId:
+                    if CategoryId not in self.CategorySubjectsMap:
+                        self.CategorySubjectsMap[CategoryId] = []
+                    self.CategorySubjectsMap[CategoryId].append(Subject)
+            
+            # Initially load all subjects
+            self._LoadAllSubjects()
+            
+            self.Logger.info(f"Loaded {len(self.AllCategories)} categories, {len(self.AllSubjects)} subjects")
+            
+        except Exception as Error:
+            self.Logger.error(f"Data loading error: {Error}")
+            # Fallback data
+            self.CategoryComboBox.addItem("Programming Languages")
+            self.CategoryComboBox.addItem("Computer Science")
+            self.SubjectComboBox.addItem("Python")
+            self.SubjectComboBox.addItem("Programming")
     
-    def UpdateAuthors(self, Authors: List[str]):
-        """Update the author filter options"""
-        # Clear existing
-        self.AuthorCombo.clear()
+    def _LoadAllSubjects(self) -> None:
+        """Load all subjects into subjects dropdown"""
+        self.SubjectComboBox.clear()
+        self.SubjectComboBox.addItem("All Subjects")
         
-        # Add "All Authors" option
-        self.AuthorCombo.addItem("All Authors", "")
-        
-        # Add authors
-        for Author in Authors:
-            self.AuthorCombo.addItem(Author, Author)
-        
-        # Update popular authors buttons
-        self.UpdatePopularAuthors(Authors[:6])  # Top 6 authors
+        for Subject in self.AllSubjects:
+            self.SubjectComboBox.addItem(Subject.Name)
     
-    def UpdatePopularAuthors(self, Authors: List[str]):
-        """Update popular author quick buttons"""
-        # Clear existing buttons
-        for i in reversed(range(self.PopularAuthorsLayout.count())):
-            child = self.PopularAuthorsLayout.itemAt(i).widget()
-            if child:
-                child.deleteLater()
+    def _LoadSubjectsForCategory(self, CategoryName: str) -> None:
+        """Load subjects filtered by category"""
+        self.SubjectComboBox.clear()
+        self.SubjectComboBox.addItem("All Subjects")
         
-        # Add new buttons
-        for Author in Authors:
-            AuthorBtn = QPushButton(Author)
-            AuthorBtn.setCheckable(True)
-            AuthorBtn.setMaximumHeight(25)
-            AuthorBtn.clicked.connect(lambda checked, a=Author: self.OnPopularAuthorClicked(a))
-            self.PopularAuthorsLayout.addWidget(AuthorBtn)
-    
-    def UpdateStats(self, TotalBooks: int, FilteredBooks: int):
-        """Update the stats display"""
-        if FilteredBooks == TotalBooks:
-            self.StatsLabel.setText(f"{TotalBooks} books total")
+        if CategoryName == "All Categories":
+            # Load all subjects
+            self._LoadAllSubjects()
+            return
+        
+        # Find category ID
+        CategoryId = None
+        for Category in self.AllCategories:
+            if Category.Name == CategoryName:
+                CategoryId = Category.Id
+                break
+        
+        if CategoryId and CategoryId in self.CategorySubjectsMap:
+            # Load subjects for this category
+            CategorySubjects = self.CategorySubjectsMap[CategoryId]
+            for Subject in CategorySubjects:
+                self.SubjectComboBox.addItem(Subject.Name)
+            
+            self.Logger.debug(f"Loaded {len(CategorySubjects)} subjects for category '{CategoryName}'")
         else:
-            self.StatsLabel.setText(f"{FilteredBooks} of {TotalBooks} books")
+            self.Logger.debug(f"No subjects found for category '{CategoryName}'")
+    
+    def _ConnectSignals(self) -> None:
+        """Connect UI signals with enhanced category->subject filtering"""
+        # Search with debouncing
+        self.SearchLineEdit.textChanged.connect(self._OnSearchTextChanged)
         
-        self.ResultsLabel.setText(f"Showing {FilteredBooks} books")
+        # Category changes should filter subjects
+        self.CategoryComboBox.currentTextChanged.connect(self._OnCategoryChanged)
+        
+        # Subject changes 
+        self.SubjectComboBox.currentTextChanged.connect(self._OnSubjectChanged)
+    
+    def _OnCategoryChanged(self, CategoryText: str) -> None:
+        """Handle category changes - filter subjects and clear search"""
+        # Filter subjects by selected category
+        self._LoadSubjectsForCategory(CategoryText)
+        
+        # Clear search when category changes
+        if CategoryText != "All Categories":
+            self.SearchLineEdit.clear()
+        
+        # Emit filter change
+        self._EmitFilterChange()
+    
+    def _OnSubjectChanged(self, SubjectText: str) -> None:
+        """Handle subject changes - clear search"""
+        # Clear search when subject is selected
+        if SubjectText != "All Subjects":
+            self.SearchLineEdit.clear()
+        
+        # Emit filter change
+        self._EmitFilterChange()
+    
+    def _OnSearchTextChanged(self, SearchText: str) -> None:
+        """Handle search with category/subject clearing"""
+        self.SearchTimer.stop()
+        
+        if len(SearchText) > 1:
+            # Clear dropdowns when searching
+            self.CategoryComboBox.setCurrentText("All Categories")
+            self.SubjectComboBox.setCurrentText("All Subjects")
+            self.SearchTimer.start(400)
+        elif len(SearchText) == 0:
+            self._PerformSearch()
+    
+    def _PerformSearch(self) -> None:
+        """Perform search"""
+        SearchText = self.SearchLineEdit.text().strip()
+        Criteria = SearchCriteria()
+        if SearchText:
+            Criteria.SearchTerm = SearchText
+        self.SearchRequested.emit(Criteria)
+    
+    def _EmitFilterChange(self) -> None:
+        """Emit filter change with current selections"""
+        Category = self.CategoryComboBox.currentText()
+        Subject = self.SubjectComboBox.currentText()
+        
+        Criteria = SearchCriteria()
+        if Category != "All Categories":
+            Criteria.Categories = [Category]
+        if Subject != "All Subjects":
+            Criteria.Subjects = [Subject]
+        
+        # Only emit if we have actual filters
+        if not Criteria.IsEmpty():
+            self.FilterChanged.emit(Criteria)
+        
+        self.Logger.debug(f"Filter changed: Category='{Category}', Subject='{Subject}'")
     
     def GetCurrentCriteria(self) -> SearchCriteria:
-        """Build and return current search criteria"""
+        """Get current search criteria"""
         Criteria = SearchCriteria()
         
-        # Text search
-        Criteria.SearchText = self.SearchEdit.text().strip()
-        Criteria.SearchTitle = self.SearchTitleCheck.isChecked()
-        Criteria.SearchAuthor = self.SearchAuthorCheck.isChecked()
-        Criteria.SearchSubject = self.SearchSubjectCheck.isChecked()
-        Criteria.SearchKeywords = self.SearchKeywordsCheck.isChecked()
-        Criteria.SearchDescription = self.SearchDescriptionCheck.isChecked()
+        SearchText = self.SearchLineEdit.text().strip()
+        if SearchText:
+            Criteria.SearchTerm = SearchText
         
-        # Categories
-        if self.MultipleCategoriesCheck.isChecked():
-            # Multiple selection from list
-            SelectedItems = self.CategoryList.selectedItems()
-            Criteria.Categories = [item.data(Qt.ItemDataRole.UserRole) for item in SelectedItems 
-                                 if item.data(Qt.ItemDataRole.UserRole)]
-        else:
-            # Single selection from combo
-            CurrentCategory = self.CategoryCombo.currentData()
-            if CurrentCategory:  # Skip empty category (All Categories option)
-                Criteria.Categories = [CurrentCategory]
+        Category = self.CategoryComboBox.currentText()
+        if Category != "All Categories":
+            Criteria.Categories = [Category]
         
-        # Author - handle both selection and typed text for editable ComboBox
-        CurrentAuthor = self.AuthorCombo.currentData()
-        CurrentAuthorText = self.AuthorCombo.currentText().strip()
-        CurrentAuthorIndex = self.AuthorCombo.currentIndex()
+        Subject = self.SubjectComboBox.currentText()
+        if Subject != "All Subjects":
+            Criteria.Subjects = [Subject]
         
-        # For editable ComboBox, we need to handle both data and text
-        AuthorToUse = None
-        
-        if CurrentAuthor and CurrentAuthor.strip():
-            # User selected from dropdown - use the data
-            AuthorToUse = CurrentAuthor.strip()
-        elif CurrentAuthorText and CurrentAuthorText != "All Authors":
-            # User typed something - check if it matches an existing author
-            for i in range(self.AuthorCombo.count()):
-                if self.AuthorCombo.itemText(i).strip().lower() == CurrentAuthorText.lower():
-                    AuthorToUse = self.AuthorCombo.itemData(i)
-                    break
-            
-            # If no exact match found, use the typed text as-is (user might be filtering by partial author name)
-            if not AuthorToUse and CurrentAuthorText:
-                AuthorToUse = CurrentAuthorText
-        
-        if AuthorToUse:
-            Criteria.Authors = [AuthorToUse]
-        
-        # Quick filters
-        if self.RecentlyAddedBtn.isChecked():
-            Criteria.DateAddedFrom = QDate.currentDate().addDays(-30).toString("yyyy-MM-dd")
-        
-        if self.HighRatedBtn.isChecked():
-            Criteria.MinRating = 4
-        
-        if self.UnreadBtn.isChecked():
-            Criteria.ReadStatuses = ["Unread"]
-        
-        if self.LargeFilesBtn.isChecked():
-            Criteria.MinFileSize = 50 * 1024 * 1024  # 50 MB
-        
-        # Advanced filters
-        if self.MinRatingSlider.value() > 0:
-            Criteria.MinRating = max(Criteria.MinRating, self.MinRatingSlider.value())
-        
-        if self.MinPagesSpinBox.value() > 0:
-            Criteria.MinPageCount = self.MinPagesSpinBox.value()
-        
-        if self.MaxPagesSpinBox.value() < 9999:
-            Criteria.MaxPageCount = self.MaxPagesSpinBox.value()
-        
-        # Date filter
-        if self.DateFilterCheck.isChecked():
-            Criteria.DateAddedFrom = self.DateFromEdit.date().toString("yyyy-MM-dd")
-            Criteria.DateAddedTo = self.DateToEdit.date().toString("yyyy-MM-dd")
-        
-        # File formats
-        FileFormats = []
-        if self.PdfCheck.isChecked():
-            FileFormats.append("PDF")
-        if self.EpubCheck.isChecked():
-            FileFormats.append("EPUB")
-        if self.MobiCheck.isChecked():
-            FileFormats.append("MOBI")
-        Criteria.FileFormats = FileFormats
-        
-        self.CurrentCriteria = Criteria
         return Criteria
-    
-    def ClearFilters(self):
-        """Clear all filters and reset to defaults"""
-        # Search
-        self.SearchEdit.clear()
-        self.SearchTitleCheck.setChecked(True)
-        self.SearchAuthorCheck.setChecked(True)
-        self.SearchSubjectCheck.setChecked(True)
-        self.SearchKeywordsCheck.setChecked(True)
-        self.SearchDescriptionCheck.setChecked(False)
-        
-        # Quick filters
-        self.RecentlyAddedBtn.setChecked(False)
-        self.HighRatedBtn.setChecked(False)
-        self.UnreadBtn.setChecked(False)
-        self.LargeFilesBtn.setChecked(False)
-        
-        # Categories
-        self.CategoryCombo.setCurrentIndex(0)
-        self.CategoryList.clearSelection()
-        self.MultipleCategoriesCheck.setChecked(False)
-        
-        # Authors
-        self.AuthorCombo.setCurrentIndex(0)
-        
-        # Clear popular author buttons
-        for i in range(self.PopularAuthorsLayout.count()):
-            widget = self.PopularAuthorsLayout.itemAt(i).widget()
-            if isinstance(widget, QPushButton):
-                widget.setChecked(False)
-        
-        # Advanced
-        self.MinRatingSlider.setValue(0)
-        self.MinPagesSpinBox.setValue(0)
-        self.MaxPagesSpinBox.setValue(9999)
-        self.DateFilterCheck.setChecked(False)
-        self.PdfCheck.setChecked(True)
-        self.EpubCheck.setChecked(False)
-        self.MobiCheck.setChecked(False)
-        
-        logging.info("All filters cleared")
-    
-    # Event handlers
-    def OnSearchTextChanged(self):
-        """Handle search text changes with debouncing"""
-        self.SearchTimer.stop()
-        self.SearchTimer.start(500)  # 500ms delay
-    
-    def OnSearchTimerTimeout(self):
-        """Handle search timer timeout"""
-        self.OnFiltersChanged()
-    
-    def OnAuthorTextChanged(self):
-        """Handle author text changes with debouncing"""
-        self.AuthorTimer.stop()
-        self.AuthorTimer.start(500)  # 500ms delay
-    
-    def OnAuthorTimerTimeout(self):
-        """Handle author timer timeout"""
-        self.OnFiltersChanged()
-    
-    def OnFiltersChanged(self):
-        """Handle any filter change"""
-        Criteria = self.GetCurrentCriteria()
-        self.FiltersChanged.emit(Criteria)
-    
-    def OnSearchClicked(self):
-        """Handle search button click"""
-        Criteria = self.GetCurrentCriteria()
-        self.SearchRequested.emit(Criteria)
-        logging.info(f"Search requested: {Criteria.GetSummary()}")
-    
-    def OnClearClicked(self):
-        """Handle clear button click"""
-        self.ClearFilters()
-        self.ClearRequested.emit()
-        logging.info("Filters cleared")
-    
-    def OnMultipleCategoriesToggled(self, Checked: bool):
-        """Handle multiple categories checkbox toggle"""
-        if Checked:
-            self.CategoryCombo.hide()
-            self.CategoryList.show()
-        else:
-            self.CategoryCombo.show()
-            self.CategoryList.hide()
-            self.CategoryList.clearSelection()
-        self.OnFiltersChanged()
-    
-    def OnRatingChanged(self, Value: int):
-        """Handle rating slider change"""
-        self.RatingLabel.setText(f"{Value}-5")
-        self.OnFiltersChanged()
-    
-    def OnDateFilterToggled(self, Checked: bool):
-        """Handle date filter checkbox toggle"""
-        self.DateFromEdit.setEnabled(Checked)
-        self.DateToEdit.setEnabled(Checked)
-        if Checked:
-            self.OnFiltersChanged()
-    
-    def OnPopularAuthorClicked(self, Author: str):
-        """Handle popular author button click"""
-        # Set the author in the combo box
-        Index = self.AuthorCombo.findData(Author)
-        if Index >= 0:
-            self.AuthorCombo.setCurrentIndex(Index)
-        self.OnFiltersChanged()

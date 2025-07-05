@@ -12,6 +12,7 @@ generates audit/status report, with full error handling, logging, and audit trai
 Fixed: Now ignores base directory from header paths and uses relative paths from current directory.
 Fixed: Regex now handles both comment-style (# Path:) and docstring-style (Path:) headers.
 Fixed: Better handling of absolute paths with leading slashes.
+Fixed: Smarter base directory stripping - only strips known base directories, preserves nested paths.
 """
 
 import os
@@ -142,13 +143,13 @@ def ReadHeaderTargetPath(FilePath: str) -> str:
 
 def StripBaseDirectory(Path: str) -> str:
     """
-    Removes the base directory from a path, returning the relative path.
-    Handles both relative and absolute paths.
+    Removes known base directories from a path, returning the relative path.
+    Only strips if the path starts with a recognized base directory.
     
     Examples:
-    - 'ProjectHimalaya/CliveJob.py' -> 'CliveJob.py'
+    - 'ProjectHimalaya/Source/Utilities/File.py' -> 'Source/Utilities/File.py'
+    - 'Source/Utilities/File.py' -> 'Source/Utilities/File.py' (unchanged)
     - '/BowersWorld-com/SetupSearchSystem_v2.py' -> 'SetupSearchSystem_v2.py' 
-    - 'SomeProject/Scripts/AutoUpdate.py' -> 'Scripts/AutoUpdate.py'
     - 'SingleFile.py' -> 'SingleFile.py'
     """
     # Normalize path separators and remove leading/trailing slashes
@@ -160,12 +161,29 @@ def StripBaseDirectory(Path: str) -> str:
     if len(Segments) <= 1:
         # If only one segment (filename only), return as-is
         return Path
-    else:
-        # Remove first segment (base directory) and rejoin
+    
+    # Known base directories that should be stripped
+    # Add any other base directory names you use
+    KNOWN_BASE_DIRS = {
+        'ProjectHimalaya',
+        'BowersWorld-com', 
+        'Himalaya',
+        'Project',
+        # Add more as needed
+    }
+    
+    FirstSegment = Segments[0]
+    
+    # Only strip if first segment is a known base directory
+    if FirstSegment in KNOWN_BASE_DIRS:
         RelativeSegments = Segments[1:]
         RelativePath = '/'.join(RelativeSegments)
-        logging.info(f"Stripped base directory: '{Path}' -> '{RelativePath}'")
+        logging.info(f"Stripped known base directory '{FirstSegment}': '{Path}' -> '{RelativePath}'")
         return RelativePath
+    else:
+        # Path doesn't start with known base dir, return as-is
+        logging.info(f"No known base directory found, keeping path as-is: '{Path}'")
+        return Path
 
 def ArchiveExisting(TargetPath: str) -> str:
     """
