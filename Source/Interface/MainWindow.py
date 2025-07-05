@@ -325,9 +325,10 @@ class AndersonMainWindow(CustomWindow):
         self.MainSplitter.addWidget(self.BookGrid)
         
         # Set splitter proportions
-        self.MainSplitter.setStretchFactor(0, 0)  # Filter panel fixed width
+        self.MainSplitter.setStretchFactor(0, 0)
+        self.MainSplitter.setCollapsible(0, False)  # Prevent filter panel collapse  # Filter panel fixed width
         self.MainSplitter.setStretchFactor(1, 1)  # Book grid expandable
-        self.MainSplitter.setSizes([280, 1120])    # Initial sizes
+        self.MainSplitter.setSizes([350, 1050])    # Initial sizes
         
         MainLayout.addWidget(self.MainSplitter)
     
@@ -400,12 +401,27 @@ class AndersonMainWindow(CustomWindow):
         except Exception as Error:
             logging.warning(f"Error saving settings: {Error}")
     
+    
+    def ShowEmptyStartState(self):
+        """Show empty state on startup"""
+        # Clear any existing books
+        self.BookGrid.ClearBooks()
+        
+        # Show welcome message in the status
+        self.SetLoadingState(False, "Ready - Enter search terms to find books")
+        
+        # Update filter panel stats
+        self.FilterPanel.UpdateStats(0, 0)
+        
+        logging.info("Application started - showing empty state")
+
     def StartDataLoading(self):
         """Start loading initial data"""
-        self.SetLoadingState(True, "Initializing library...")
+        self.ShowEmptyStartState()
         
         # Load initial books
-        self.LoadBooks()
+        # Don't load books automatically - wait for user search
+        # self.LoadBooks()  # Commented out - load only when user searches
         
         # Load filter data in background
         QTimer.singleShot(100, self.LoadFilterData)
@@ -485,7 +501,8 @@ class AndersonMainWindow(CustomWindow):
     
     def OnClearFilters(self):
         """Handle clear filters request"""
-        self.LoadBooks()
+        # Load books only when user performs search
+        #         self.LoadBooks()
     
     def OnBooksLoaded(self, Result: SearchResult):
         """Handle books loaded from worker"""
@@ -563,7 +580,8 @@ class AndersonMainWindow(CustomWindow):
     
     def OnRefreshLibrary(self):
         """Handle refresh library action"""
-        self.LoadBooks()
+        # Load books only when user performs search
+        #         self.LoadBooks()
         self.LoadFilterData()
     
     def OnShowStatistics(self):

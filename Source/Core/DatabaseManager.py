@@ -134,18 +134,27 @@ class DatabaseManager:
     
     def GetAllCategories(self) -> List[Category]:
         """
-        Get all categories ordered alphabetically.
+        Get all categories with book counts ordered alphabetically.
         
         Returns:
-            List of Category objects
+            List of Category objects with book counts
         """
-        Query = "SELECT id, category FROM categories ORDER BY category ASC"
+        Query = """
+            SELECT c.id, c.category, COUNT(b.id) as book_count 
+            FROM categories c 
+            LEFT JOIN books b ON c.id = b.category_id 
+            GROUP BY c.id, c.category 
+            ORDER BY c.category ASC
+        """
         Rows = self.ExecuteQuery(Query)
         
         Categories = []
         for Row in Rows:
-            # Corrected instantiation of CategoryInfo (aliased as Category)
-            CategoryObj = Category(Name=Row['category'])
+            # Create CategoryInfo with proper book count
+            CategoryObj = Category(
+                Name=Row['category'],
+                BookCount=Row['book_count']
+            )
             Categories.append(CategoryObj)
         
         return Categories
