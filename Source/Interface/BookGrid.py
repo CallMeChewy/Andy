@@ -267,8 +267,13 @@ class BookTile(QFrame):
         try:
             # Try to load thumbnail first
             CoverPath = None
+            logging.info(f"Attempting to load cover for: {self.Book.Title}")
+            logging.info(f"Book.ThumbnailPath: {self.Book.ThumbnailPath}")
+            logging.info(f"Book.FileName: {self.Book.FileName}")
+
             if self.Book.ThumbnailPath and os.path.exists(self.Book.ThumbnailPath):
                 CoverPath = self.Book.ThumbnailPath
+                logging.info(f"Found thumbnail at Book.ThumbnailPath: {CoverPath}")
             
             # Try default cover locations
             if not CoverPath:
@@ -280,8 +285,11 @@ class BookTile(QFrame):
                 ]
                 
                 for Path in PossiblePaths:
-                    if os.path.exists(Path):
-                        CoverPath = Path
+                    full_path = os.path.join(os.getcwd(), Path) # Ensure absolute path for checking existence
+                    logging.info(f"Checking possible cover path: {full_path}")
+                    if os.path.exists(full_path):
+                        CoverPath = full_path
+                        logging.info(f"Found cover at: {CoverPath}")
                         break
             
             if CoverPath:
@@ -294,13 +302,17 @@ class BookTile(QFrame):
                         Qt.TransformationMode.SmoothTransformation
                     )
                     self.CoverLabel.setPixmap(ScaledPixmap)
+                    logging.info(f"Successfully loaded cover for {self.Book.Title}")
                     return
+                else:
+                    logging.warning(f"QPixmap could not load image from {CoverPath}")
             
             # Use default cover
+            logging.info(f"Using default cover for {self.Book.Title}")
             self.SetDefaultCover()
             
         except Exception as Error:
-            logging.warning(f"Error loading cover for {self.Book.Title}: {Error}")
+            logging.warning(f"Error loading cover for {self.Book.Title}: {Error}", exc_info=True)
             self.SetDefaultCover()
     
     def SetDefaultCover(self):
@@ -380,34 +392,44 @@ class BookTile(QFrame):
     def ApplyStyles(self):
         """Apply visual styling to the tile"""
         if self.IsSelected:
-            self.setStyleSheet("""
-                QFrame {
-                    background-color: #e3f2fd;
-                    border: 2px solid #2196f3;
-                    border-radius: 6px;
-                }
-            """)
-        elif self.IsHovered:
-            self.setStyleSheet("""
-                QFrame {
-                    background-color: #f5f5f5;
-                    border: 1px solid #ccc;
-                    border-radius: 6px;
-                }
-            """)
-        else:
-            self.setStyleSheet("""
-                QFrame {
-                    background-color: white;
-                    border: 1px solid #e0e0e0;
-                    border-radius: 6px;
-                }
-                QFrame:hover {
-                    border: 1px solid #bbb;
-                    background-color: #fafafa;
-                }
-            """)
-    
+                self.setStyleSheet("""
+                    QFrame {
+                        background-color: #0078d4;
+                        border: 3px solid #106ebe;
+                        border-radius: 8px;
+                    }
+                    QLabel {
+                        color: #ffffff;
+                        font-weight: bold;
+                    }
+                """)
+            elif self.IsHovered:
+                self.setStyleSheet("""
+                    QFrame {
+                        background-color: #404040;
+                        border: 2px solid #0078d4;
+                        border-radius: 8px;
+                    }
+                    QLabel {
+                        color: #ffffff;
+                    }
+                """)
+            else:
+                self.setStyleSheet("""
+                    QFrame {
+                        background-color: #3c3c3c;
+                        border: 1px solid #555555;
+                        border-radius: 8px;
+                    }
+                    QFrame:hover {
+                        border: 2px solid #0078d4;
+                        background-color: #404040;
+                    }
+                    QLabel {
+                        color: #ffffff;
+                    }
+                """)
+
     def SetSelected(self, Selected: bool):
         """Set tile selection state"""
         self.IsSelected = Selected
@@ -591,35 +613,46 @@ class BookGrid(QWidget):
         self.SortOrderBtn.clicked.connect(self.OnSortOrderToggled)
     
     def ApplyStyles(self):
-        """Apply consistent styling"""
-        self.setStyleSheet("""
-            QFrame {
-                background-color: #fafafa;
-                border: 1px solid #e0e0e0;
-            }
-            QPushButton {
-                padding: 6px 12px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                background-color: #fff;
-            }
-            QPushButton:hover {
-                background-color: #f0f0f0;
-            }
-            QPushButton:checked {
-                background-color: #2196f3;
-                color: white;
-                border-color: #1976d2;
-            }
-            QComboBox {
-                padding: 4px 8px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                background-color: #fff;
-                min-width: 100px;
-            }
-        """)
-    
+        """Apply visual styling to the tile"""
+        if self.IsSelected:
+                self.setStyleSheet("""
+                    QFrame {
+                        background-color: #0078d4;
+                        border: 3px solid #106ebe;
+                        border-radius: 8px;
+                    }
+                    QLabel {
+                        color: #ffffff;
+                        font-weight: bold;
+                    }
+                """)
+            elif self.IsHovered:
+                self.setStyleSheet("""
+                    QFrame {
+                        background-color: #404040;
+                        border: 2px solid #0078d4;
+                        border-radius: 8px;
+                    }
+                    QLabel {
+                        color: #ffffff;
+                    }
+                """)
+            else:
+                self.setStyleSheet("""
+                    QFrame {
+                        background-color: #3c3c3c;
+                        border: 1px solid #555555;
+                        border-radius: 8px;
+                    }
+                    QFrame:hover {
+                        border: 2px solid #0078d4;
+                        background-color: #404040;
+                    }
+                    QLabel {
+                        color: #ffffff;
+                    }
+                """)
+
     def SetBooks(self, Books: List[BookRecord]):
         """Set the list of books to display"""
         self.Books = Books.copy()
@@ -631,8 +664,8 @@ class BookGrid(QWidget):
     
     def UpdateBooks(self, SearchResult: SearchResult):
         """Update books from search result"""
-        self.Books = SearchResult.Books.copy()
-        self.FilteredBooks = SearchResult.Books.copy()
+        self.Books = SearchResult.Books if SearchResult.Books is not None else []
+        self.FilteredBooks = self.Books.copy()
         self.ApplySorting()
         self.RefreshDisplay()
         
@@ -679,6 +712,10 @@ class BookGrid(QWidget):
         """Create book tiles for current books"""
         try:
             self.ProgressBar.setVisible(True)
+            if not self.FilteredBooks:
+                self.ShowEmptyState()
+                return
+
             self.ProgressBar.setMaximum(len(self.FilteredBooks))
             self.ProgressBar.setValue(0)
             
@@ -693,7 +730,7 @@ class BookGrid(QWidget):
             self.UpdateSelectionDisplay()
             
         except Exception as Error:
-            logging.error(f"Error creating book tiles: {Error}")
+            logging.error(f"Error creating book tiles: {Error}", exc_info=True)
             self.ProgressBar.setVisible(False)
             self.StatusLabel.setText("Error displaying books")
     

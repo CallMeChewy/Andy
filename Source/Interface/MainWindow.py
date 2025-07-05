@@ -2,7 +2,7 @@
 # Path: Source/Interface/MainWindow.py
 # Standard: AIDEV-PascalCase-1.8
 # Created: 2025-07-04
-# Last Modified: 2025-07-04  04:12PM
+# Last Modified: 2025-07-04 06:35PM
 """
 Description: Main Application Window for Anderson's Library
 Orchestrates the Filter Panel and Book Grid components to create the complete
@@ -14,7 +14,7 @@ import logging
 import os
 import subprocess
 import platform
-from PySide6.QtWidgets import (QApplication, QMainWindow, QHBoxLayout, QVBoxLayout, , QSizePolicy
+from PySide6.QtWidgets import (QApplication, QMainWindow, QHBoxLayout, QVBoxLayout, QSizePolicy, QMenu,
                                QWidget, QMenuBar, QStatusBar, QToolBar, 
                                QMessageBox, QProgressBar, QLabel, QSplitter,
                                QDialog, QTextEdit, QPushButton, QFileDialog)
@@ -225,26 +225,26 @@ class AndersonMainWindow(CustomWindow):
         FileMenu.addAction(ExitAction)
         
         # View menu
-        ViewMenu = MenuBar.addMenu("&View")
+        self.ViewMenu = MenuBar.addMenu("&View")
         
         GridViewAction = QAction("&Grid View", self)
         GridViewAction.setShortcut(QKeySequence("Ctrl+1"))
         GridViewAction.setCheckable(True)
         GridViewAction.setChecked(True)
         GridViewAction.triggered.connect(lambda: self.SetViewMode("grid"))
-        ViewMenu.addAction(GridViewAction)
+        self.ViewMenu.addAction(GridViewAction)
         
         ListViewAction = QAction("&List View", self)
         ListViewAction.setShortcut(QKeySequence("Ctrl+2"))
         ListViewAction.setCheckable(True)
         ListViewAction.triggered.connect(lambda: self.SetViewMode("list"))
-        ViewMenu.addAction(ListViewAction)
+        self.ViewMenu.addAction(ListViewAction)
         
         DetailViewAction = QAction("&Detail View", self)
         DetailViewAction.setShortcut(QKeySequence("Ctrl+3"))
         DetailViewAction.setCheckable(True)
         DetailViewAction.triggered.connect(lambda: self.SetViewMode("detail"))
-        ViewMenu.addAction(DetailViewAction)
+        self.ViewMenu.addAction(DetailViewAction)
         
         # Tools menu
         ToolsMenu = MenuBar.addMenu("&Tools")
@@ -430,12 +430,13 @@ class AndersonMainWindow(CustomWindow):
         """Load data for filter dropdowns"""
         try:
             # Load categories
-            Categories = self.BookService.GetCategories()
+            Categories = self.BookService.GetAllCategories()
             self.FilterPanel.UpdateCategories(Categories)
             
             # Load authors
             Authors = self.BookService.GetAuthors()
-            self.FilterPanel.UpdateAuthors(Authors)
+            if Authors:
+                self.FilterPanel.UpdateAuthors(Authors)
             
             logging.info("Filter data loaded")
             
@@ -458,16 +459,14 @@ class AndersonMainWindow(CustomWindow):
     
     def SetViewMode(self, Mode: str):
         """Set the book grid view mode"""
+        if not self.ViewMenu:
+            return
+
         # Update menu checkmarks
-        for Action in self.menuBar().findChild(QMenu, "&View").actions():
+        for Action in self.ViewMenu.actions():
             Action.setChecked(False)
-        
-        if Mode == "grid":
-            self.menuBar().findChild(QAction, "&Grid View").setChecked(True)
-        elif Mode == "list":
-            self.menuBar().findChild(QAction, "&List View").setChecked(True)
-        elif Mode == "detail":
-            self.menuBar().findChild(QAction, "&Detail View").setChecked(True)
+            if Action.text().lower().startswith(f"&{Mode}"):
+                Action.setChecked(True)
         
         # Update book grid
         self.BookGrid.ViewMode = Mode
@@ -490,6 +489,10 @@ class AndersonMainWindow(CustomWindow):
     
     def OnBooksLoaded(self, Result: SearchResult):
         """Handle books loaded from worker"""
+        if not Result.Success:
+            self.OnLoadingError(Result.ErrorMessage)
+            return
+
         self.CurrentBooks = Result.Books
         self.BookGrid.UpdateBooks(Result)
         
@@ -565,12 +568,20 @@ class AndersonMainWindow(CustomWindow):
     
     def OnShowStatistics(self):
         """Show library statistics dialog"""
+        if self.LoadingWorker and self.LoadingWorker.isRunning():
+            QMessageBox.information(self, "Busy", "Please wait for the current operation to complete.")
+            return
+
         if not self.LibraryStats:
             # Load statistics in background
-            Worker = LoadingWorker(self.BookService)
-            Worker.SetOperation("load_statistics")
-            Worker.StatisticsLoaded.connect(self.DisplayStatistics)
-            Worker.start()
+            self.LoadingWorker = LoadingWorker(self.BookService)
+            self.LoadingWorker.SetOperation("load_statistics")
+            self.LoadingWorker.StatisticsLoaded.connect(self.DisplayStatistics)
+            self.LoadingWorker.Error.connect(self.OnLoadingError)
+            self.LoadingWorker.Progress.connect(self.OnLoadingProgress)
+            self.LoadingWorker.finished.connect(self.OnLoadingFinished)
+            self.SetLoadingState(True, "Loading statistics...")
+            self.LoadingWorker.start()
         else:
             self.DisplayStatistics(self.LibraryStats)
     
@@ -668,11 +679,10 @@ File Type Breakdown:
         # Clean up workers
         if self.LoadingWorker and self.LoadingWorker.isRunning():
             self.LoadingWorker.quit()
-            self.LoadingWorker.wait(3000)  # Wait up to 3 seconds
-        
-        # Close database connection
-        if self.DatabaseManager:
-            self.DatabaseManager.Close()
+            if not self.LoadingWorker.wait(3000):  # Wait up to 3 seconds
+                logging.warning("Worker thread did not terminate gracefully.")
+                self.LoadingWorker.terminate() # Force terminate if necessary
+                self.LoadingWorker.wait() # Wait again after termination
         
         super().closeEvent(event)
 
@@ -695,6 +705,76 @@ def RunApplication() -> int:
         
         # Create application
         App = QApplication(sys.argv)
+        
+# Set application-wide stylesheet for better contrast
+        App.setStyleSheet("""
+            QMainWindow {
+                background-color: #2b2b2b;
+                color: #ffffff;
+            }
+            
+            QMenuBar {
+                background-color: #3c3c3c;
+                color: #ffffff;
+                border-bottom: 1px solid #555555;
+                font-size: 13px;
+            }
+            QMenuBar::item {
+                background-color: transparent;
+                padding: 6px 12px;
+            }
+            QMenuBar::item:selected {
+                background-color: #0078d4;
+                color: #ffffff;
+            }
+            
+            QMenu {
+                background-color: #3c3c3c;
+                color: #ffffff;
+                border: 2px solid #555555;
+                border-radius: 4px;
+            }
+            QMenu::item {
+                padding: 8px 16px;
+            }
+            QMenu::item:selected {
+                background-color: #0078d4;
+                color: #ffffff;
+            }
+            
+            QToolBar {
+                background-color: #3c3c3c;
+                border: none;
+                spacing: 4px;
+                padding: 4px;
+            }
+            QToolButton {
+                background-color: #4a4a4a;
+                color: #ffffff;
+                border: 2px solid #666666;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-weight: bold;
+            }
+            QToolButton:hover {
+                background-color: #404040;
+                border-color: #0078d4;
+            }
+            
+            QStatusBar {
+                background-color: #3c3c3c;
+                color: #ffffff;
+                border-top: 1px solid #555555;
+            }
+            
+            QSplitter::handle {
+                background-color: #666666;
+                width: 4px;
+            }
+            QSplitter::handle:hover {
+                background-color: #0078d4;
+            }
+        """)
         App.setApplicationName("Anderson's Library")
         App.setApplicationVersion("1.0.0")
         App.setOrganizationName("BowersWorld")

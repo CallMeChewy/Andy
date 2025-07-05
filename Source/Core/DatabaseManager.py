@@ -2,7 +2,7 @@
 # Path: Source/Core/DatabaseManager.py
 # Standard: AIDEV-PascalCase-1.8
 # Created: 2025-07-04
-# Last Modified: 2025-07-04  14:45PM
+# Last Modified: 2025-07-04 06:25PM
 """
 Description: Anderson's Library Database Manager
 Centralized SQLite database operations with connection management and error handling.
@@ -144,7 +144,8 @@ class DatabaseManager:
         
         Categories = []
         for Row in Rows:
-            CategoryObj = Category(CategoryId=Row['id'], CategoryName=Row['category'])
+            # Corrected instantiation of CategoryInfo (aliased as Category)
+            CategoryObj = Category(Name=Row['category'])
             Categories.append(CategoryObj)
         
         return Categories
@@ -164,7 +165,7 @@ class DatabaseManager:
         
         if Rows:
             Row = Rows[0]
-            return Category(CategoryId=Row['id'], CategoryName=Row['category'])
+            return Category(Name=Row['category'])
         
         return None
     
@@ -183,10 +184,30 @@ class DatabaseManager:
         
         if Rows:
             Row = Rows[0]
-            return Category(CategoryId=Row['id'], CategoryName=Row['category'])
+            return Category(Name=Row['category'])
         
         return None
-    
+
+    def GetAllAuthors(self) -> List[str]:
+        """
+        Get all unique author names ordered alphabetically.
+        This method assumes an 'author' column exists. If not, it will fail.
+        
+        Returns:
+            List of author name strings
+        """
+        # This query will fail if the 'author' column does not exist.
+        # The calling code should handle this gracefully.
+        try:
+            Query = "SELECT DISTINCT author FROM books WHERE author IS NOT NULL ORDER BY author ASC"
+            Rows = self.ExecuteQuery(Query)
+            return [Row['author'] for Row in Rows]
+        except sqlite3.Error as e:
+            if "no such column: author" in str(e):
+                self.Logger.warning("The 'books' table does not have an 'author' column. Author filtering will be disabled.")
+                return []
+            raise
+
     # =================================================================
     # SUBJECT OPERATIONS  
     # =================================================================
@@ -213,10 +234,7 @@ class DatabaseManager:
         Subjects = []
         for Row in Rows:
             SubjectObj = Subject(
-                SubjectId=Row['id'],
-                CategoryId=Row['category_id'],
-                SubjectName=Row['subject'],
-                CategoryName=Row['category']
+                Name=Row['subject']
             )
             Subjects.append(SubjectObj)
         
@@ -242,12 +260,7 @@ class DatabaseManager:
         
         if Rows:
             Row = Rows[0]
-            return Subject(
-                SubjectId=Row['id'],
-                CategoryId=Row['category_id'],
-                SubjectName=Row['subject'],
-                CategoryName=Row['category'] or ""
-            )
+            return Subject(Name=Row['subject'])
         
         return None
     
@@ -268,12 +281,7 @@ class DatabaseManager:
         
         Subjects = []
         for Row in Rows:
-            SubjectObj = Subject(
-                SubjectId=Row['id'],
-                CategoryId=Row['category_id'],
-                SubjectName=Row['subject'],
-                CategoryName=Row['category'] or ""
-            )
+            SubjectObj = Subject(Name=Row['subject'])
             Subjects.append(SubjectObj)
         
         return Subjects
@@ -293,7 +301,7 @@ class DatabaseManager:
             List of Book objects
         """
         Query = """
-            SELECT b.id, b.title, b.category_id, b.subject_id,
+            SELECT b.id, b.title, b.author, b.category_id, b.subject_id, b.FilePath, b.ThumbnailPath,
                    c.category, s.subject
             FROM books b
             LEFT JOIN categories c ON b.category_id = c.id
@@ -316,7 +324,7 @@ class DatabaseManager:
             List of Book objects matching search criteria
         """
         Query = """
-            SELECT b.id, b.title, b.category_id, b.subject_id,
+            SELECT b.id, b.title, b.author, b.category_id, b.subject_id, b.FilePath, b.ThumbnailPath,
                    c.category, s.subject
             FROM books b
             LEFT JOIN categories c ON b.category_id = c.id
@@ -337,7 +345,7 @@ class DatabaseManager:
             List of all Book objects
         """
         Query = """
-            SELECT b.id, b.title, b.category_id, b.subject_id,
+            SELECT b.id, b.title, b.author, b.category_id, b.subject_id, b.FilePath, b.ThumbnailPath,
                    c.category, s.subject
             FROM books b
             LEFT JOIN categories c ON b.category_id = c.id
@@ -359,7 +367,7 @@ class DatabaseManager:
             Book object or None if not found
         """
         Query = """
-            SELECT b.id, b.title, b.category_id, b.subject_id,
+            SELECT b.id, b.title, b.author, b.category_id, b.subject_id, b.FilePath, b.ThumbnailPath,
                    c.category, s.subject
             FROM books b
             LEFT JOIN categories c ON b.category_id = c.id
@@ -385,7 +393,7 @@ class DatabaseManager:
             Book object or None if not found
         """
         Query = """
-            SELECT b.id, b.title, b.category_id, b.subject_id,
+            SELECT b.id, b.title, b.author, b.category_id, b.subject_id, b.FilePath, b.ThumbnailPath,
                    c.category, s.subject
             FROM books b
             LEFT JOIN categories c ON b.category_id = c.id
@@ -415,18 +423,24 @@ class DatabaseManager:
             List of Book objects
         """
         Books = []
+        # Check if 'author' column exists from the first row
+        has_author = Rows and 'author' in Rows[0].keys()
+        has_filepath = Rows and 'FilePath' in Rows[0].keys()
+        has_thumbnailpath = Rows and 'ThumbnailPath' in Rows[0].keys()
+
         for Row in Rows:
             # Generate filename from title if not stored in database
             FileName = self._GenerateFilenameFromTitle(Row['title'])
             
             BookObj = Book(
-                BookId=Row['id'],
+                Id=Row['id'],
                 Title=Row['title'],
-                CategoryId=Row['category_id'],
-                SubjectId=Row['subject_id'],
-                CategoryName=Row['category'] or "",
-                SubjectName=Row['subject'] or "",
-                FileName=FileName
+                Author=Row['author'] if has_author and Row['author'] is not None else "",
+                Category=Row['category'] or "",
+                Subject=Row['subject'] or "",
+                FileName=FileName,
+                FilePath=Row['FilePath'] if has_filepath else "",
+                ThumbnailPath=Row['ThumbnailPath'] if has_thumbnailpath else ""
             )
             Books.append(BookObj)
         

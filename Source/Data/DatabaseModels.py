@@ -27,7 +27,7 @@ class BookRecord:
     # Primary identifiers
     Id: int = 0
     Title: str = ""
-    Author: str = ""
+    Author: Optional[str] = None
     
     # File information
     FileName: str = ""
@@ -92,6 +92,8 @@ class BookRecord:
     
     def GetDisplayAuthor(self) -> str:
         """Get formatted author for display"""
+        if self.Author is None:
+            return ""
         if len(self.Author) > 30:
             return self.Author[:27] + "..."
         return self.Author
@@ -344,7 +346,7 @@ def CreateBookRecordFromDict(Data: Dict[str, Any]) -> BookRecord:
         return BookRecord(
             Id=int(SafeData.get('Id', 0)),
             Title=str(SafeData.get('Title', '')),
-            Author=str(SafeData.get('Author', '')),
+            Author=SafeData.get('Author'),
             FileName=str(SafeData.get('FileName', '')),
             FilePath=str(SafeData.get('FilePath', '')),
             FileSize=int(SafeData.get('FileSize', 0)),
