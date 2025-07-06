@@ -2,10 +2,10 @@
 # Path: Source/Interface/BookGrid.py
 # Standard: AIDEV-PascalCase-1.8
 # Created: 2025-07-05
-# Last Modified: 2025-07-05  08:00PM
+# Last Modified: 2025-07-05  07:40PM
 """
-Description: BookGrid with Variable Name Conflict Fix
-Fixed variable naming conflict between Book class and BookCard widget.
+Description: BookGrid with Simple Interface Compatibility
+Updated to work with plain List[Book] instead of SearchResult objects.
 Implements proper 5-column max layout with left justification and placeholder cards.
 """
 
@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton,
     QScrollArea, QFrame, QMessageBox, QSizePolicy
 )
-from PySide6.QtCore import QTimer, Signal, Qt, QSize
+from PySide6.QtCore import QTimer, pyqtSignal, Qt, QSize
 from PySide6.QtGui import QPixmap, QFont
 
 from Source.Core.BookService import BookService
@@ -27,19 +27,19 @@ from Source.Data.DatabaseModels import Book
 class BookCard(QFrame):
     """Individual book card widget with cover and title"""
     
-    BookClicked = Signal(str)  # Emits book title when clicked
+    BookClicked = pyqtSignal(str)  # Emits book title when clicked
     
-    def __init__(self, BookData: Book, parent=None):  # ✅ FIXED: Changed parameter name
+    def __init__(self, Book: Book, parent=None):
         """
         Initialize book card.
         
         Args:
-            BookData: Book data object
+            Book: Book data object
             parent: Parent widget
         """
         super().__init__(parent)
         
-        self.BookData = BookData  # ✅ FIXED: Use BookData instead of Book
+        self.Book = Book
         self.Logger = logging.getLogger(__name__)
         
         # Set card properties
@@ -71,7 +71,7 @@ class BookCard(QFrame):
         Layout.addWidget(self.CoverLabel)
         
         # Book title
-        self.TitleLabel = QLabel(BookData.Title)  # ✅ FIXED: Use BookData
+        self.TitleLabel = QLabel(Book.Title)
         self.TitleLabel.setFont(QFont("Arial", 8))
         self.TitleLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.TitleLabel.setWordWrap(True)
@@ -86,55 +86,35 @@ class BookCard(QFrame):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
     
     def _LoadCoverImage(self) -> None:
-        """Load book cover image with better path handling"""
+        """Load book cover image"""
         try:
-            # ✅ FIXED: Use BookData and try multiple thumbnail paths
-            BookTitle = self.BookData.Title
+            # Try to load thumbnail
+            ThumbnailPath = Path("Assets/Thumbnails") / f"{self.Book.Title}.jpg"
             
-            # Try multiple potential thumbnail locations
-            ThumbnailPaths = [
-                Path("Assets/Thumbnails") / f"{BookTitle}.jpg",
-                Path("Assets/Thumbnails") / f"{BookTitle}.jpeg", 
-                Path("Assets/Thumbnails") / f"{BookTitle}.png",
-                Path("Thumbnails") / f"{BookTitle}.jpg",  # Alternative location
-                Path("Assets") / f"{BookTitle}.jpg"  # Another alternative
-            ]
+            if ThumbnailPath.exists():
+                Pixmap = QPixmap(str(ThumbnailPath))
+                if not Pixmap.isNull():
+                    # Scale image to fit
+                    ScaledPixmap = Pixmap.scaled(
+                        165, 195, 
+                        Qt.AspectRatioMode.KeepAspectRatio, 
+                        Qt.TransformationMode.SmoothTransformation
+                    )
+                    self.CoverLabel.setPixmap(ScaledPixmap)
+                    return
             
-            for ThumbnailPath in ThumbnailPaths:
-                if ThumbnailPath.exists():
-                    Pixmap = QPixmap(str(ThumbnailPath))
-                    if not Pixmap.isNull():
-                        # Scale image to fit
-                        ScaledPixmap = Pixmap.scaled(
-                            165, 195, 
-                            Qt.AspectRatioMode.KeepAspectRatio, 
-                            Qt.TransformationMode.SmoothTransformation
-                        )
-                        self.CoverLabel.setPixmap(ScaledPixmap)
-                        self.Logger.debug(f"Loaded thumbnail: {ThumbnailPath}")
-                        return
-            
-            # Fallback to placeholder with book info
-            PlaceholderText = f"📚\n{BookTitle[:20]}{'...' if len(BookTitle) > 20 else ''}"
-            self.CoverLabel.setText(PlaceholderText)
-            self.CoverLabel.setStyleSheet("""
-                border: 1px solid gray; 
-                background-color: #f8f9fa; 
-                color: #495057;
-                font-size: 10px;
-                text-align: center;
-            """)
-            self.Logger.debug(f"No thumbnail found for: {BookTitle}")
+            # Fallback to placeholder
+            self.CoverLabel.setText("No Cover\nAvailable")
+            self.CoverLabel.setStyleSheet("border: 1px solid gray; background-color: #f0f0f0; color: gray;")
             
         except Exception as Error:
-            self.Logger.error(f"Failed to load cover for '{self.BookData.Title}': {Error}")
-            self.CoverLabel.setText("❌\nError Loading\nCover")
-            self.CoverLabel.setStyleSheet("border: 1px solid red; background-color: #ffe6e6; color: red;")
+            self.Logger.error(f"Failed to load cover for '{self.Book.Title}': {Error}")
+            self.CoverLabel.setText("Error Loading\nCover")
     
     def mousePressEvent(self, Event) -> None:
         """Handle mouse clicks"""
         if Event.button() == Qt.MouseButton.LeftButton:
-            self.BookClicked.emit(self.BookData.Title)  # ✅ FIXED: Use BookData
+            self.BookClicked.emit(self.Book.Title)
         super().mousePressEvent(Event)
 
 
@@ -155,13 +135,14 @@ class PlaceholderCard(QFrame):
 
 class BookGrid(QWidget):
     """
-    Main book display grid with variable name conflict fixed.
+    Main book display grid with simple interface compatibility.
     Works with plain List[Book] instead of SearchResult objects.
     Supports max 5 columns and uses placeholders to prevent centering.
     """
     
-    StatusUpdate = Signal(str)
-    BookOpened = Signal(str)
+    # Signals
+    StatusUpdate = pyqtSignal(str)
+    BookOpened = pyqtSignal(str)
     
     def __init__(self, BookService: BookService, parent=None):
         """
@@ -244,6 +225,7 @@ class BookGrid(QWidget):
     
     def DisplayBooks(self, Books: List[Book]) -> None:
         """
+        ✅ FIXED: Accept plain List[Book] instead of SearchResult objects.
         Display list of books in grid with proper left justification.
         
         Args:
@@ -311,18 +293,18 @@ class BookGrid(QWidget):
         self.Logger.debug(f"Updated columns: {self.CurrentColumns} (width: {AvailableWidth})")
     
     def _CreateBookCards(self) -> None:
-        """✅ FIXED: Create book cards with proper variable naming"""
+        """Create book cards and place them in grid"""
         Row = 0
         Column = 0
         
-        for BookData in self.CurrentBooks:  # ✅ FIXED: Use BookData instead of Book
+        for Book in self.CurrentBooks:
             # Create book card
-            Card = BookCard(BookData)  # ✅ FIXED: Use Card instead of BookCard variable
-            Card.BookClicked.connect(self._OnBookClicked)
+            BookCard = BookCard(Book)
+            BookCard.BookClicked.connect(self._OnBookClicked)
             
             # Add to grid
-            self.GridLayout.addWidget(Card, Row, Column)
-            self.BookCards.append(Card)
+            self.GridLayout.addWidget(BookCard, Row, Column)
+            self.BookCards.append(BookCard)
             
             # Update position
             Column += 1

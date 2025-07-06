@@ -2,11 +2,11 @@
 # Path: Source/Core/BookService.py
 # Standard: AIDEV-PascalCase-1.8
 # Created: 2025-07-05
-# Last Modified: 2025-07-05  06:25PM
+# Last Modified: 2025-07-05  05:31PM
 """
-Description: Fixed Book Service with Database Schema Compatibility
-Updated to work with existing lowercase database schema while maintaining PascalCase code standards.
-Fixes column name mismatches and adds proper GetSubjectsForCategory method.
+Description: Enhanced Book Service with Category/Subject Coordination
+Adds GetSubjectsForCategory method to support proper filter panel workflow.
+Maintains all existing functionality while adding category-subject relationship queries.
 """
 
 import logging
@@ -16,13 +16,13 @@ from typing import List, Optional, Dict, Any
 from pathlib import Path
 
 from Source.Core.DatabaseManager import DatabaseManager
-from Source.Data.DatabaseModels import Book, SearchCriteria, SearchResult, CreateBookFromDatabaseRow
+from Source.Data.DatabaseModels import Book, SearchCriteria, SearchResult
 
 
 class BookService:
     """
     Enhanced business logic service for book operations.
-    Compatible with existing database schema while providing modern interface.
+    Provides category/subject coordination and comprehensive search capabilities.
     """
     
     def __init__(self, DatabaseManager: DatabaseManager):
@@ -32,7 +32,7 @@ class BookService:
         Args:
             DatabaseManager: Database connection manager
         """
-        self.DatabaseManager = DatabaseManager  # ✅ FIXED: Changed from self.Database
+        self.DatabaseManager = DatabaseManager
         self.Logger = logging.getLogger(__name__)
         
         # Cache for performance
@@ -50,21 +50,29 @@ class BookService:
             List of all Book objects
         """
         try:
-            # ✅ FIXED: Use lowercase column names to match existing schema
             Query = """
-                SELECT b.id, b.title, b.author, b.category_id, b.subject_id, 
-                       b.FilePath, b.ThumbnailPath, c.category, s.subject
-                FROM books b
-                LEFT JOIN categories c ON b.category_id = c.id
-                LEFT JOIN subjects s ON b.subject_id = s.id
-                ORDER BY b.title COLLATE NOCASE
+                SELECT BookTitle, Category, Subject, Authors, Pages, Rating, 
+                       AddedDate, LastOpened, FilePath, FileSize
+                FROM Books 
+                ORDER BY BookTitle
             """
             
             Results = self.DatabaseManager.ExecuteQuery(Query)
             Books = []
             
             for Row in Results:
-                BookData = CreateBookFromDatabaseRow(Row)
+                BookData = Book(
+                    Title=Row[0],
+                    Category=Row[1],
+                    Subject=Row[2],
+                    Authors=Row[3],
+                    Pages=Row[4],
+                    Rating=Row[5],
+                    AddedDate=Row[6],
+                    LastOpened=Row[7],
+                    FilePath=Row[8],
+                    FileSize=Row[9]
+                )
                 Books.append(BookData)
             
             self.Logger.debug(f"Retrieved {len(Books)} books")
@@ -89,52 +97,42 @@ class BookService:
             WhereConditions = []
             Parameters = []
             
-            # ✅ FIXED: Use lowercase column names and proper SearchTerm attribute
             # Search term (searches across multiple fields)
             if Criteria.SearchTerm:
                 SearchPattern = f"%{Criteria.SearchTerm}%"
                 WhereConditions.append("""
-                    (b.title LIKE ? OR b.author LIKE ? OR c.category LIKE ? OR s.subject LIKE ?)
+                    (BookTitle LIKE ? OR Authors LIKE ? OR Category LIKE ? OR Subject LIKE ?)
                 """)
                 Parameters.extend([SearchPattern, SearchPattern, SearchPattern, SearchPattern])
             
             # Category filter
             if Criteria.Categories:
                 CategoryPlaceholders = ','.join(['?' for _ in Criteria.Categories])
-                WhereConditions.append(f"c.category IN ({CategoryPlaceholders})")
+                WhereConditions.append(f"Category IN ({CategoryPlaceholders})")
                 Parameters.extend(Criteria.Categories)
             
             # Subject filter
             if Criteria.Subjects:
                 SubjectPlaceholders = ','.join(['?' for _ in Criteria.Subjects])
-                WhereConditions.append(f"s.subject IN ({SubjectPlaceholders})")
+                WhereConditions.append(f"Subject IN ({SubjectPlaceholders})")
                 Parameters.extend(Criteria.Subjects)
             
             # Authors filter
             if Criteria.Authors:
                 AuthorPattern = f"%{Criteria.Authors[0]}%"  # First author for now
-                WhereConditions.append("b.author LIKE ?")
+                WhereConditions.append("Authors LIKE ?")
                 Parameters.append(AuthorPattern)
             
-            # Rating filter (if rating column exists)
+            # Rating filter
             if Criteria.MinRating is not None:
-                try:
-                    # Check if rating column exists
-                    TestQuery = "SELECT rating FROM books LIMIT 1"
-                    self.DatabaseManager.ExecuteQuery(TestQuery)
-                    WhereConditions.append("b.rating >= ?")
-                    Parameters.append(Criteria.MinRating)
-                except:
-                    # Rating column doesn't exist, skip this filter
-                    pass
+                WhereConditions.append("Rating >= ?")
+                Parameters.append(Criteria.MinRating)
             
-            # Build final query with lowercase table and column names
+            # Build final query
             BaseQuery = """
-                SELECT b.id, b.title, b.author, b.category_id, b.subject_id, 
-                       b.FilePath, b.ThumbnailPath, c.category, s.subject
-                FROM books b
-                LEFT JOIN categories c ON b.category_id = c.id
-                LEFT JOIN subjects s ON b.subject_id = s.id
+                SELECT BookTitle, Category, Subject, Authors, Pages, Rating, 
+                       AddedDate, LastOpened, FilePath, FileSize
+                FROM Books
             """
             
             if WhereConditions:
@@ -142,17 +140,28 @@ class BookService:
             else:
                 Query = BaseQuery
             
-            Query += " ORDER BY b.title COLLATE NOCASE"
+            Query += " ORDER BY BookTitle"
             
             # Execute query
             Results = self.DatabaseManager.ExecuteQuery(Query, Parameters)
             Books = []
             
             for Row in Results:
-                BookData = CreateBookFromDatabaseRow(Row)
+                BookData = Book(
+                    Title=Row[0],
+                    Category=Row[1],
+                    Subject=Row[2],
+                    Authors=Row[3],
+                    Pages=Row[4],
+                    Rating=Row[5],
+                    AddedDate=Row[6],
+                    LastOpened=Row[7],
+                    FilePath=Row[8],
+                    FileSize=Row[9]
+                )
                 Books.append(BookData)
             
-            self.Logger.debug(f"Search returned {len(Books)} books for criteria: {Criteria.GetDescription()}")
+            self.Logger.debug(f"Search returned {len(Books)} books for criteria: {Criteria}")
             return Books
             
         except Exception as Error:
@@ -170,8 +179,7 @@ class BookService:
             return self._CategoryCache
         
         try:
-            # ✅ FIXED: Use lowercase table and column names
-            Query = "SELECT DISTINCT category FROM categories WHERE category IS NOT NULL ORDER BY category"
+            Query = "SELECT DISTINCT Category FROM Books WHERE Category IS NOT NULL ORDER BY Category"
             Results = self.DatabaseManager.ExecuteQuery(Query)
             
             Categories = [Row[0] for Row in Results if Row[0]]
@@ -195,8 +203,7 @@ class BookService:
             return self._SubjectCache
         
         try:
-            # ✅ FIXED: Use lowercase table and column names
-            Query = "SELECT DISTINCT subject FROM subjects WHERE subject IS NOT NULL ORDER BY subject"
+            Query = "SELECT DISTINCT Subject FROM Books WHERE Subject IS NOT NULL ORDER BY Subject"
             Results = self.DatabaseManager.ExecuteQuery(Query)
             
             Subjects = [Row[0] for Row in Results if Row[0]]
@@ -211,7 +218,6 @@ class BookService:
     
     def GetSubjectsForCategory(self, Category: str) -> List[str]:
         """
-        ✅ FIXED: Added missing method for category/subject coordination.
         Get all subjects for a specific category.
         
         Args:
@@ -230,13 +236,12 @@ class BookService:
                 self.Logger.debug(f"Retrieved {len(Subjects)} subjects for category '{Category}' from cache")
                 return Subjects
             
-            # Fallback to direct query with lowercase names
+            # Fallback to direct query
             Query = """
-                SELECT DISTINCT s.subject 
-                FROM subjects s
-                INNER JOIN categories c ON s.category_id = c.id
-                WHERE c.category = ? AND s.subject IS NOT NULL 
-                ORDER BY s.subject
+                SELECT DISTINCT Subject 
+                FROM Books 
+                WHERE Category = ? AND Subject IS NOT NULL 
+                ORDER BY Subject
             """
             
             Results = self.DatabaseManager.ExecuteQuery(Query, [Category])
@@ -252,15 +257,12 @@ class BookService:
     def _BuildCategorySubjectCache(self) -> None:
         """Build cache of category-subject relationships"""
         try:
-            # ✅ FIXED: Use lowercase table and column names
             Query = """
-                SELECT c.category, s.subject, COUNT(b.id) as book_count
-                FROM categories c
-                INNER JOIN subjects s ON s.category_id = c.id
-                LEFT JOIN books b ON b.subject_id = s.id
-                WHERE c.category IS NOT NULL AND s.subject IS NOT NULL
-                GROUP BY c.category, s.subject
-                ORDER BY c.category, s.subject
+                SELECT Category, Subject, COUNT(*) as BookCount
+                FROM Books 
+                WHERE Category IS NOT NULL AND Subject IS NOT NULL
+                GROUP BY Category, Subject
+                ORDER BY Category, Subject
             """
             
             Results = self.DatabaseManager.ExecuteQuery(Query)
@@ -289,8 +291,7 @@ class BookService:
             List of author names
         """
         try:
-            # ✅ FIXED: Use lowercase table and column names
-            Query = "SELECT DISTINCT author FROM books WHERE author IS NOT NULL ORDER BY author"
+            Query = "SELECT DISTINCT Authors FROM Books WHERE Authors IS NOT NULL ORDER BY Authors"
             Results = self.DatabaseManager.ExecuteQuery(Query)
             
             Authors = [Row[0] for Row in Results if Row[0]]
@@ -313,21 +314,29 @@ class BookService:
             Book object if found, None otherwise
         """
         try:
-            # ✅ FIXED: Use lowercase column names
             Query = """
-                SELECT b.id, b.title, b.author, b.category_id, b.subject_id, 
-                       b.FilePath, b.ThumbnailPath, c.category, s.subject
-                FROM books b
-                LEFT JOIN categories c ON b.category_id = c.id
-                LEFT JOIN subjects s ON b.subject_id = s.id
-                WHERE b.title = ?
+                SELECT BookTitle, Category, Subject, Authors, Pages, Rating, 
+                       AddedDate, LastOpened, FilePath, FileSize
+                FROM Books 
+                WHERE BookTitle = ?
             """
             
             Results = self.DatabaseManager.ExecuteQuery(Query, [Title])
             
             if Results:
                 Row = Results[0]
-                BookData = CreateBookFromDatabaseRow(Row)
+                BookData = Book(
+                    Title=Row[0],
+                    Category=Row[1],
+                    Subject=Row[2],
+                    Authors=Row[3],
+                    Pages=Row[4],
+                    Rating=Row[5],
+                    AddedDate=Row[6],
+                    LastOpened=Row[7],
+                    FilePath=Row[8],
+                    FileSize=Row[9]
+                )
                 return BookData
             
             return None
@@ -374,7 +383,7 @@ class BookService:
             else:  # Linux
                 subprocess.run(["xdg-open", str(FilePath)], check=True)
             
-            # Update last opened date if column exists
+            # Update last opened date
             self._UpdateLastOpened(Title)
             
             self.Logger.info(f"Opened book: '{Title}'")
@@ -388,19 +397,13 @@ class BookService:
             return False
     
     def _UpdateLastOpened(self, Title: str) -> None:
-        """Update last opened timestamp for a book (if column exists)"""
+        """Update last opened timestamp for a book"""
         try:
-            # Check if last_opened column exists
-            TestQuery = "SELECT last_opened FROM books LIMIT 1"
-            self.DatabaseManager.ExecuteQuery(TestQuery)
-            
-            # Column exists, update it
-            Query = "UPDATE books SET last_opened = datetime('now') WHERE title = ?"
+            Query = "UPDATE Books SET LastOpened = datetime('now') WHERE BookTitle = ?"
             self.DatabaseManager.ExecuteNonQuery(Query, [Title])
             
-        except Exception:
-            # Column doesn't exist or other error, skip update
-            pass
+        except Exception as Error:
+            self.Logger.error(f"Failed to update last opened for '{Title}': {Error}")
     
     def GetStatistics(self) -> Dict[str, Any]:
         """
@@ -413,42 +416,37 @@ class BookService:
             Stats = {}
             
             # Total books
-            Result = self.DatabaseManager.ExecuteQuery("SELECT COUNT(*) FROM books")
+            Result = self.DatabaseManager.ExecuteQuery("SELECT COUNT(*) FROM Books")
             Stats['TotalBooks'] = Result[0][0] if Result else 0
             
             # Books by category
             Result = self.DatabaseManager.ExecuteQuery("""
-                SELECT c.category, COUNT(b.id) 
-                FROM categories c
-                LEFT JOIN books b ON b.category_id = c.id
-                WHERE c.category IS NOT NULL 
-                GROUP BY c.category 
-                ORDER BY COUNT(b.id) DESC
+                SELECT Category, COUNT(*) 
+                FROM Books 
+                WHERE Category IS NOT NULL 
+                GROUP BY Category 
+                ORDER BY COUNT(*) DESC
             """)
             Stats['BooksByCategory'] = {Row[0]: Row[1] for Row in Result}
             
             # Books by subject
             Result = self.DatabaseManager.ExecuteQuery("""
-                SELECT s.subject, COUNT(b.id) 
-                FROM subjects s
-                LEFT JOIN books b ON b.subject_id = s.id
-                WHERE s.subject IS NOT NULL 
-                GROUP BY s.subject 
-                ORDER BY COUNT(b.id) DESC 
+                SELECT Subject, COUNT(*) 
+                FROM Books 
+                WHERE Subject IS NOT NULL 
+                GROUP BY Subject 
+                ORDER BY COUNT(*) DESC 
                 LIMIT 10
             """)
             Stats['TopSubjects'] = {Row[0]: Row[1] for Row in Result}
             
-            # Try to get average rating if column exists
-            try:
-                Result = self.DatabaseManager.ExecuteQuery("""
-                    SELECT AVG(rating) 
-                    FROM books 
-                    WHERE rating IS NOT NULL AND rating > 0
-                """)
-                Stats['AverageRating'] = round(Result[0][0], 2) if Result and Result[0][0] else 0
-            except:
-                Stats['AverageRating'] = 0
+            # Average rating
+            Result = self.DatabaseManager.ExecuteQuery("""
+                SELECT AVG(Rating) 
+                FROM Books 
+                WHERE Rating IS NOT NULL AND Rating > 0
+            """)
+            Stats['AverageRating'] = round(Result[0][0], 2) if Result and Result[0][0] else 0
             
             return Stats
             

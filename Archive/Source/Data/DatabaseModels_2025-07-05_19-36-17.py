@@ -2,10 +2,10 @@
 # Path: Source/Data/DatabaseModels.py
 # Standard: AIDEV-PascalCase-1.8
 # Created: 2025-07-05
-# Last Modified: 2025-07-05  07:35PM
+# Last Modified: 2025-07-05  07:25PM
 """
-Description: Complete Database Models with Full Import Compatibility
-Includes all expected import functions for backward compatibility with existing code.
+Description: Fixed Database Models with Import Compatibility
+Adds missing SearchTerm attribute and fixes import naming for compatibility.
 """
 
 from typing import Optional, List, Dict, Any
@@ -257,85 +257,8 @@ def CreateBookFromDatabaseRow(row: tuple) -> Book:
         )
 
 
-def CreateCategoryFromRow(row: tuple) -> Category:
-    """
-    Create Category object from database row.
-    
-    Args:
-        row: Database row tuple (id, category, book_count)
-        
-    Returns:
-        Category object
-    """
-    try:
-        if len(row) >= 2:
-            return Category(
-                Name=row[1] or "Unknown Category",
-                BookCount=row[2] if len(row) > 2 else 0
-            )
-        else:
-            return Category(
-                Name=str(row[0]) if len(row) > 0 else "Unknown Category",
-                BookCount=0
-            )
-    except (IndexError, TypeError):
-        return Category(Name="Unknown Category", BookCount=0)
-
-
-def CreateSubjectFromRow(row: tuple) -> Subject:
-    """
-    Create Subject object from database row.
-    
-    Args:
-        row: Database row tuple (id, subject, category_name, book_count)
-        
-    Returns:
-        Subject object
-    """
-    try:
-        if len(row) >= 2:
-            return Subject(
-                Name=row[1] or "Unknown Subject",
-                CategoryName=row[2] if len(row) > 2 else None,
-                BookCount=row[3] if len(row) > 3 else 0
-            )
-        else:
-            return Subject(
-                Name=str(row[0]) if len(row) > 0 else "Unknown Subject",
-                BookCount=0
-            )
-    except (IndexError, TypeError):
-        return Subject(Name="Unknown Subject", BookCount=0)
-
-
-def CreateSearchCriteriaFromDict(criteria_dict: dict) -> SearchCriteria:
-    """
-    Create SearchCriteria from dictionary.
-    
-    Args:
-        criteria_dict: Dictionary with search parameters
-        
-    Returns:
-        SearchCriteria object
-    """
-    return SearchCriteria(
-        SearchTerm=criteria_dict.get('SearchTerm'),
-        Categories=criteria_dict.get('Categories', []),
-        Subjects=criteria_dict.get('Subjects', []),
-        Authors=criteria_dict.get('Authors', []),
-        MinRating=criteria_dict.get('MinRating'),
-        MaxRating=criteria_dict.get('MaxRating'),
-        SortBy=criteria_dict.get('SortBy', 'Title'),
-        SortOrder=criteria_dict.get('SortOrder', 'ASC'),
-        Limit=criteria_dict.get('Limit'),
-        Offset=criteria_dict.get('Offset', 0)
-    )
-
-
-# ✅ FIXED: Add all expected import aliases for backward compatibility
+# ✅ FIXED: Add alias for import compatibility
 CreateBookFromRow = CreateBookFromDatabaseRow  # Alias for backward compatibility
-CreateCategoryFromRow = CreateCategoryFromRow  # Already defined above
-CreateSubjectFromRow = CreateSubjectFromRow    # Already defined above
 
 
 def CreateSearchCriteriaForText(search_text: str) -> SearchCriteria:
@@ -366,13 +289,3 @@ def CreateSearchCriteriaForFilters(categories: List[str] = None, subjects: List[
         Categories=categories or [],
         Subjects=subjects or []
     )
-
-
-# Legacy compatibility exports - add any other functions that might be imported
-__all__ = [
-    'Book', 'SearchCriteria', 'SearchResult', 'Category', 'Subject', 'LibraryStatistics',
-    'CreateBookFromDatabaseRow', 'CreateBookFromRow', 
-    'CreateCategoryFromRow', 'CreateSubjectFromRow',
-    'CreateSearchCriteriaForText', 'CreateSearchCriteriaForFilters',
-    'CreateSearchCriteriaFromDict'
-]

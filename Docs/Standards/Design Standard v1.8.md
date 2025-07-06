@@ -1,3 +1,15 @@
+# File: Design Standard v1.8.md
+
+# Path: Docs/Standards/Design Standard v1.8.md
+
+# Standard: AIDEV-PascalCase-1.8
+
+# Created: 2025-06-05
+
+# Last Modified: 2025-07-05  05:45PM
+
+---
+
 # Design Standard v1.8
 
 ## Author & Project
@@ -16,15 +28,16 @@
 4. [Design Standards](#design-standards)
 5. [File & Directory Structure](#file--directory-structure)
 6. [Project Setup Standards](#project-setup-standards)
-7. [Development Environment](#development-environment)
-8. [Imports & Dependencies](#imports--dependencies)
-9. [Coding Style & Documentation](#coding-style--documentation)
-10. [Testing & Quality](#testing--quality)
-11. [SQL and Data Access](#sql-and-data-access)
-12. [Third-Party Libraries & Ecosystem Exceptions](#third-party-libraries--ecosystem-exceptions)
-13. [AI Collaboration Practices](#ai-collaboration-practices)
-14. [Attribution & License](#attribution--license)
-15. [Revision History](#revision-history)
+7. [Automated File Management](#automated-file-management)
+8. [Development Environment](#development-environment)
+9. [Imports & Dependencies](#imports--dependencies)
+10. [Coding Style & Documentation](#coding-style--documentation)
+11. [Testing & Quality](#testing--quality)
+12. [SQL and Data Access](#sql-and-data-access)
+13. [Third-Party Libraries & Ecosystem Exceptions](#third-party-libraries--ecosystem-exceptions)
+14. [AI Collaboration Practices](#ai-collaboration-practices)
+15. [Attribution & License](#attribution--license)
+16. [Revision History](#revision-history)
 
 ---
 
@@ -85,57 +98,72 @@ Extended details as needed.
 ### Markdown/Documentation Files (.md, .txt, etc.)
 
 ```markdown
-<!-- File: <DocumentName.md> -->
-<!-- Path: <Full/Path/From/ProjectRoot/DocumentName.md> -->
-<!-- Standard: AIDEV-PascalCase-1.8 -->
-<!-- Created: YYYY-MM-DD -->
-<!-- Last Modified: YYYY-MM-DD  HH:MM[AM|PM] -->
-<!-- Description: <Short document description> -->
-<!-- Extended details as needed. -->
+# File: <DocumentName.md>
+# Path: <Full/Path/From/ProjectRoot/DocumentName.md>
+# Standard: AIDEV-PascalCase-1.8
+# Created: YYYY-MM-DD
+# Last Modified: YYYY-MM-DD  HH:MM[AM|PM]
+---
+# Document Title
+
+Description and content here.
 ```
-
-### Configuration Files (JSON, YAML, etc.)
-
-```json
-// File: <ConfigName.json>
-// Path: <Full/Path/From/ProjectRoot/ConfigName.json>
-// Standard: AIDEV-PascalCase-1.8
-// Created: YYYY-MM-DD
-// Last Modified: YYYY-MM-DD  HH:MM[AM|PM]
-// Description: <Short configuration description>
-```
-
-**CRITICAL:** The "Last Modified" timestamp **MUST** be updated every time the file is changed. This is not optional.
-
-- **Timestamps:** Double space between date and time.
-- **Path:** Always matches repo structure.
-- **Format adaptation:** Use appropriate comment syntax for each file type.
 
 ---
 
 ## Naming Conventions
 
-- **Files & Modules:** `PascalCase.py` (exceptions listed below)
-- **Classes:** `PascalCase`
-- **Functions & Methods:** `PascalCase`
-- **Variables:** `PascalCase` (exceptions for globals: `g_VariableName`)
-- **Constants:** `ALL_CAPS_WITH_UNDERSCORES`
-- **Private:** Prefix with single underscore (`_PrivateVar`)
-- **Database Names:** `PascalCase` (e.g., `ProjectHimalaya`, `UserData`)
-- **Table Names:** `PascalCase` (e.g., `UserProfiles`, `DocumentMetadata`)
-- **Column Names:** `PascalCase` (e.g., `FirstName`, `CreatedDate`, `UserId`)
+**Everything uses PascalCase** unless ecosystem or technical requirements force exceptions.
 
-### Filename Exceptions
+### Files & Directories
 
-Files should use `PascalCase` **unless** they would violate:
+- **Python files:** `BookService.py`, `DatabaseManager.py`, `FilterPanel.py`
+- **Directories:** `Source/`, `Assets/`, `Tests/`, `Scripts/`
+- **Documentation:** `DesignStandard.md`, `ReadMe.md`, `MigrationGuide.md`
+- **Scripts:** `UpdateFiles.py`, `CreateThumbnails.py`, `BackupDatabase.py`
 
-- **Long-standing Python conventions:** `__init__.py`, `setup.py`
-- **Web/HTML standards:** `index.html`, `style.css` (if lowercase is required)
-- **Third-party package requirements:** `test_*.py` (if required by pytest), `requirements.txt`
-- **System conventions:** `.gitignore`, `Dockerfile`
-- **Framework requirements:** When specific frameworks mandate particular naming patterns
+### Code Elements
 
-When exceptions are used, document the reason in the file header.
+- **Classes:** `BookService`, `DatabaseManager`, `FilterPanel`
+- **Functions:** `GetCategories()`, `SearchBooks()`, `DisplayResults()`
+- **Variables:** `BookTitle`, `CategoryList`, `SearchCriteria`
+- **Constants:** `MAX_RESULTS`, `DEFAULT_PATH`, `API_TIMEOUT`
+
+### Database Elements
+
+- **Databases:** `LibraryDatabase`, `UserProfiles`, `SystemLogs`
+- **Tables:** `Books`, `Categories`, `UserSessions`, `AuditLogs`
+- **Columns:** `BookTitle`, `CategoryName`, `CreatedDate`, `LastModified`
+- **Indexes:** `IX_Books_Category`, `IX_Users_Email`, `IX_Logs_Date`
+- **Constraints:** `PK_Books_ID`, `FK_Books_Category`, `UK_Users_Email`
+- **SQL Variables:** `@BookCount`, `@CategoryFilter`, `@StartDate`
+- **SQL Aliases:** `B` (for Books), `C` (for Categories), `U` (for Users)
+- **Procedures:** `GetBooksByCategory`, `UpdateUserPreferences`
+- **Triggers:** `TR_Books_UpdateTimestamp`, `TR_Users_LogChanges`
+
+### Ecosystem Exceptions
+
+- **Python packages:** `__init__.py`, `setup.py` (required by Python)
+- **Web files:** Lowercase when required by web standards
+- **Third-party tools:** Follow tool conventions when necessary (documented in header)
+
+**Complete SQL Example:**
+
+```sql
+-- Good: Full PascalCase compliance
+SELECT B.BookTitle, C.CategoryName, B.Rating
+FROM Books B
+    INNER JOIN Categories C ON B.CategoryID = C.CategoryID
+WHERE B.CreatedDate >= @StartDate
+    AND C.CategoryName LIKE @CategoryFilter
+ORDER BY B.BookTitle;
+
+-- Avoid: Traditional snake_case
+SELECT b.book_title, c.category_name, b.rating
+FROM books b
+    INNER JOIN categories c ON b.category_id = c.category_id
+WHERE b.created_date >= @start_date;
+```
 
 ---
 
@@ -179,182 +207,204 @@ When exceptions are used, document the reason in the file header.
 ```
 .
 ├── ./Assets                    # Static assets (images, icons, etc.)
-├── ./Config                    # Configuration files
-├── ./Data/Database            # Database files and schemas
-├── ./Legacy                   # Legacy code and deprecated files
-├── ./library                  # Library/framework specific code
-│   ├── ./library/admin        # Administrative interfaces
-│   ├── ./library/app          # Application core
-│   ├── ./library/assets       # Library-specific assets
-│   ├── ./library/auth         # Authentication modules
-│   ├── ./library/css          # Library stylesheets
-│   ├── ./library/js           # Library JavaScript
-│   └── ./library/setup        # Library setup and initialization
-├── ./README.md                # Project documentation
-├── ./requirements.txt         # Python dependencies
-├── ./Scripts                  # Utility and maintenance scripts
-│   ├── ./Scripts/Deployment   # Deployment automation
-│   ├── ./Scripts/Development  # Development helpers
-│   ├── ./Scripts/Maintenance  # Maintenance utilities
-│   ├── ./Scripts/Migration    # Database migration scripts
-│   └── ./Scripts/System       # System administration scripts
-├── ./shared                   # Shared resources across modules
-│   ├── ./shared/css          # Shared stylesheets
-│   └── ./shared/js           # Shared JavaScript
-├── ./Source                   # Main source code
-│   ├── ./Source/AI           # AI/ML related modules
-│   ├── ./Source/Core         # Core application logic
-│   ├── ./Source/Interface    # User interface components
-│   └── ./Source/Plugins      # Plugin architecture
-├── ./Tests                   # Test suites and test data
-├── ./Updates                 # Update scripts and changelogs
-└── ./WebPages               # Web interface files
+├── ./Source                    # Main source code (PascalCase)
+│   ├── ./Core                  # Business logic and services
+│   ├── ./Data                  # Data models and database access
+│   ├── ./Interface             # UI components and windows
+│   ├── ./Utils                 # Utility functions and helpers
+│   └── ./Framework             # Reusable framework components
+├── ./Tests                     # Unit tests and test data
+├── ./Scripts                   # Deployment and utility scripts
+├── ./Docs                      # All documentation
+│   ├── ./Standards             # Design standards and guidelines
+│   ├── ./Architecture          # System architecture docs
+│   ├── ./Updates               # Update logs and reports
+│   └── ./Daily                 # Daily development notes
+├── ./Archive                   # Archived versions of files
+├── ./Updates                   # Temporary folder for file updates
+├── ./Legacy                    # Legacy code being phased out
+└── ./Assets                    # Static resources and data files
 ```
 
 ---
 
 ## Project Setup Standards
 
-For new projects, provide a setup Python script that can be run inside a new project folder. The project name is derived from the base folder name. The setup script must:
-
-### Setup Script Requirements (`SetupProject.py`)
-
-1. **Create and activate a .venv environment**
-2. **Create the standard file system structure** (see Directory Structure above)
-3. **Create a .gitignore file** (see template below)
-4. **Initialize git repository**
-5. **Install any required pip libraries** from requirements.txt
-6. **Create an attractive README for the project**
+- **Automated setup scripts required** for all new environments
+- **`requirements.txt`** or `pyproject.toml` for Python dependencies
+- **Environment validation** on startup with clear error messages
+- **Standard `.gitignore`** template used across all repositories
+- **Database initialization** scripts for clean setup
 
 ### Standard .gitignore Template
 
 ```gitignore
-# [ProjectName] - .gitignore
-
 # Python
-**__pycache__**/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
+__pycache__/
+*.pyc
+*.pyo
 *.egg-info/
-.installed.cfg
-*.egg
+.pytest_cache/
 
-# Virtual Environments
-venv/
-env/
-ENV/
+# Environment
+.env
 .venv/
-.env/
+venv/
 
-# IDEs
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
-# [ProjectName] Specific (Digital Alexandria Architecture)
-Data/Database/*.db
-Data/Database/*.db-*
-Data/Cache/
-Data/Backups/
-Logs/
-*.log
-
-# Sensitive Configuration
-Config/Production/secrets.json
-Config/Production/api_keys.json
-.env
-.env.local
-.env.production
-
-# AI Models (large files)
-Source/AI/Models/*.bin
-Source/AI/Models/*.pt
-Source/AI/Models/*.h5
-Source/AI/Training/
-
-# Temporary Files
-tmp/
-temp/
-*.tmp
-*.temp
-
-# OS Generated
+# OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
 
-# Coverage Reports
-htmlcov/
-.coverage
-.coverage.*
-coverage.xml
-*.cover
-
-# Testing
-.pytest_cache/
-.tox/
-
-# Special exclusion for directories starting with '..'
-..*/
-
-# Project-specific exclusions
-*.json
-anderson-library-service-key.json
-config/
-secrets/
-
-# Directories to ignore
-Books/
-Covers/
-Thumbs/
-node_modules/
+# Project-specific
+*.log
+temp/
+cache/
 ```
+
+---
+
+## Automated File Management
+
+**Critical Workflow:** The UpdateFiles.py script automates Design Standard v1.8 compliance and file management, eliminating manual work and ensuring consistency.
+
+### Purpose & Benefits
+
+- **Automated compliance:** PascalCase enforcement and header validation
+- **Streamlined updates:** Drop files in `Updates/` folder and run script
+- **Complete audit trail:** Full logging of all file operations
+- **Backup protection:** Automatic archiving with timestamps
+- **Error prevention:** Eliminates manual copy mistakes
+
+### File Preparation for Updates
+
+**ALL files intended for the update system MUST include a proper `Path:` header** that specifies the destination relative to project root:
+
+```python
+# File: BookService.py
+# Path: Source/Core/BookService.py
+# Standard: AIDEV-PascalCase-1.8
+# Created: 2025-07-05
+# Last Modified: 2025-07-05  05:31PM
+```
+
+```sql
+-- File: CreateUsersTable.sql
+-- Path: Scripts/Database/CreateUsersTable.sql
+-- Standard: AIDEV-PascalCase-1.8
+-- Created: 2025-07-05
+-- Last Modified: 2025-07-05  05:31PM
+```
+
+```markdown
+# File: MigrationGuide.md
+# Path: Docs/Architecture/MigrationGuide.md
+# Standard: AIDEV-PascalCase-1.8
+# Created: 2025-07-05
+# Last Modified: 2025-07-05  05:31PM
+```
+
+### Update Workflow
+
+1. **Preparation:** Place updated files in `/Updates` folder with proper headers
+2. **Execution:** Run `python UpdateFiles.py` from project root
+3. **Automation:** Script reads `Path:` headers and moves files to correct locations
+4. **Backup:** Existing files automatically archived with timestamps to `/Archive`
+5. **Compliance:** All paths and filenames converted to PascalCase
+6. **Audit:** Complete status report generated in `/Docs/Updates`
+
+### Script Capabilities
+
+- **Header parsing:** Extracts destination path from `Path:` header in any file type
+- **Base directory stripping:** Removes known base directories (ProjectHimalaya, BowersWorld-com)
+- **PascalCase enforcement:** Converts all paths and filenames to Design Standard v1.8
+- **Archiving:** Moves existing files to timestamped archive before replacement
+- **Documentation handling:** Moves `.md` and `.txt` files to dated documentation folders
+- **Error handling:** Comprehensive logging and graceful failure recovery
+- **Status reporting:** Detailed markdown report with success/failure statistics
+
+### Example Update Session
+
+```bash
+# Place files in Updates folder
+Updates/
+├── FilterPanel.py          # Path: Source/Interface/FilterPanel.py
+├── BookGrid.py             # Path: Source/Interface/BookGrid.py
+├── MainWindow.py           # Path: Source/Interface/MainWindow.py
+└── BookService.py          # Path: Source/Core/BookService.py
+
+# Run update script
+python UpdateFiles.py
+
+# Results:
+# ✅ 4 files moved successfully
+# ✅ 4 existing files archived
+# ✅ All paths converted to PascalCase
+# ✅ Audit report: Docs/Updates/Updates_2025-07-05_17-31-25.md
+```
+
+### Integration with AI Development
+
+- **Prepare files with proper headers:** AI can generate files with correct `Path:` headers
+- **Bulk updates:** Multiple files can be processed in single update session
+- **Version control friendly:** Automatic archiving preserves development history
+- **Standards enforcement:** Impossible to accidentally violate naming conventions
+- **Audit compliance:** Every change tracked and documented
+
+**This automated system makes Design Standard v1.8 compliance effortless and eliminates the maintenance overhead that would otherwise make the standard impractical.**
 
 ---
 
 ## Development Environment
 
-### Current Standard Development Environment
+### Standard Environment
 
-- **Laptop:** i7-13620H, 64GB RAM, RTX 4070, 4TB Multiple SSD
-- **IDE:** Visual Studio Code
-- **OS:** Ubuntu Desktop 25.04
-- **Python:** Latest stable version with virtual environments
-- **Version Control:** Git with standardized commit message format
+- **OS:** Ubuntu 25.04 (primary), Windows 11 (secondary)
+- **IDE:** VS Code with Python extension
+- **Python:** 3.11+ with virtual environments
+- **Hardware:** AMD Ryzen 7 5800X, 32GB RAM, RTX 3070
 
-### Environment Setup Requirements
+### Required Tools
 
-- All development must use virtual environments (.venv)
-- IDE configuration should support PascalCase conventions
-- Linting and formatting tools should be configured to respect these standards
-- GPU acceleration available for AI/ML workloads
+- **Git:** Version control with proper commit messaging
+- **Virtual Environment:** `python -m venv` for isolation
+- **Package Management:** `pip` with `requirements.txt`
+- **Testing:** `pytest` for unit testing framework
+- **Code Quality:** `pylint` or `flake8` for linting
 
 ---
 
 ## Imports & Dependencies
 
-- **Import order:** standard library, third-party, project, local.
-- **Grouped alphabetically.**
+### Import Organization
+
+```python
+# Standard library imports
+import sys
+import os
+import logging
+from pathlib import Path
+from typing import List, Optional, Dict
+
+# Third-party imports  
+import PySide6
+from PySide6.QtWidgets import QWidget, QVBoxLayout
+import sqlite3
+
+# Local imports
+from Source.Core.DatabaseManager import DatabaseManager
+from Source.Data.DatabaseModels import Book
+```
+
+### Guidelines
+
+- **Group imports** by category (standard, third-party, local)
+- **Alphabetical order** within each group
 - **Multi-line imports:** Each import on its own line.
 - **Use `isort`** (optional) for automation.
 - **Dependencies:** Centralized in `requirements.txt` or `pyproject.toml`.
@@ -387,61 +437,8 @@ node_modules/
 - **NO SQLAlchemy.**  
   - Use raw SQL and parameterized queries only.
   - SQLite is default.
-- **ALL database elements follow PascalCase with NO underscores:**
-  - **Database names:** `ProjectHimalaya`, `UserDataStore`
-  - **Table names:** `UserProfiles`, `DocumentMetadata`, `SessionLogs`
-  - **Column names:** `UserId`, `FirstName`, `LastModified`, `DocumentPath`
-  - **Index names:** `idx_UserProfiles`, `idx_DocumentMetadata`, `idx_BookAnalytics`
-  - **Constraint names:** `FK_UserProfilesUserId`, `UK_UsersEmail`, `UK_CategoriesPath`
-  - **Procedure/Function names:** `UpdateBookSearchIndex`, `GetUserProfile`
-  - **Variable names in procedures:** `v_Title`, `p_BookID`, `v_RecordCount`
-  - **Column aliases in SELECT:** `TableName`, `RecordCount`, `SubjectsUsed`
-  - **Trigger names:** `trg_UserProfilesUpdate`, `trg_DocumentsInsert`
-
-### SQL Naming Examples
-
-**✅ CORRECT:**
-
-```sql
--- Index naming
-CREATE INDEX idx_BookAnalytics ON BookAnalytics(BookID);
-CREATE INDEX idx_CategoriesActive ON Categories(IsActive);
-
--- Constraint naming  
-UNIQUE KEY UK_CategoriesPath (CategoryPath),
-FOREIGN KEY FK_BooksAuthorID (AuthorID) REFERENCES Authors(AuthorID)
-
--- Procedure variables
-CREATE PROCEDURE UpdateBookSearchIndex(IN p_BookID INTEGER)
-BEGIN
-    DECLARE v_Title TEXT;
-    DECLARE v_RecordCount INTEGER;
-
--- Column aliases
-SELECT 'Books' as TableName, COUNT(*) as RecordCount
-SELECT COUNT(DISTINCT b.SubjectID) as SubjectsUsed
-```
-
-**❌ INCORRECT:**
-
-```sql
--- Avoid underscores in names
-CREATE INDEX idx_analytics_book ON BookAnalytics(BookID);
-CREATE INDEX idx_categories_active ON Categories(IsActive);
-
--- Avoid underscores in constraints
-UNIQUE KEY UK_Categories_Path (CategoryPath),
-
--- Avoid lowercase/underscores in variables
-DECLARE v_title TEXT;
-DECLARE record_count INTEGER;
-
--- Avoid underscores in aliases
-SELECT 'Books' as table_name, COUNT(*) as record_count
-SELECT COUNT(DISTINCT b.SubjectID) as subjects_used
-```
-
-- **Schema and migration scripts** have standard headers and live in `/Database` or `/Schema`.
+  - PostgreSQL/SQL Server for production when needed.
+- **Database naming:** PascalCase for ALL elements (tables, columns, indexes, constraints)
 - **SQL file naming:** `CreateUserProfilesTable.sql`, `UpdateSchema_v1_2.sql`
 - **SQL files must use standard headers** with File, Path, Standard, Created, Last Modified, Description, and Author fields.
 
@@ -464,6 +461,7 @@ SELECT COUNT(DISTINCT b.SubjectID) as subjects_used
 - Major changes generated or reviewed by AI (ChatGPT, Claude, etc.) are noted in the header or docstring.
 - AI-generated refactoring/design is tracked via comments or commit messages for transparency.
 - All contributors (human or AI) are acknowledged in the attribution section.
+- **File updates for AI:** Use proper `Path:` headers for automated update system integration.
 
 ---
 
@@ -499,6 +497,7 @@ SELECT COUNT(DISTINCT b.SubjectID) as subjects_used
   - **COMPREHENSIVE SQL NAMING STANDARDS:** Extended PascalCase to ALL SQL elements including indexes, constraints, variables, aliases, procedures, and triggers with complete elimination of underscores
   - **Added SQL file header requirements** and examples
   - **Provided detailed SQL naming examples** showing correct vs. incorrect patterns
+  - **NEW: Added Automated File Management section** documenting UpdateFiles.py workflow, header requirements, and integration with AI development processes
 
 ---
 
