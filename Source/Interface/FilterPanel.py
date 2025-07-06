@@ -1,21 +1,44 @@
 # File: FilterPanel.py
 # Path: Source/Interface/FilterPanel.py
 # Standard: AIDEV-PascalCase-1.8
-# Created: 2025-07-05
-# Last Modified: 2025-07-05  07:55PM
+# Created: 2025-07-06
+# Last Modified: 2025-07-06  02:57PM
 """
-Description: FilterPanel with PySide6 Signal Compatibility
-Fixed import to use PySide6.QtCore.Signal instead of pyqtSignal.
-Implements correct workflow: Category selection → Subject population → Book display.
+Description: Filter Panel for Anderson's Library - Left Sidebar Interface
+Provides search and filtering interface for book library navigation.
+Handles category/subject hierarchical filtering and text search.
+
+Features:
+- Hierarchical category and subject filtering
+- Real-time text search with field selection
+- Advanced filtering options (rating, file size, etc.)
+- Filter state management and persistence
+- Responsive UI with proper error handling
+- Signal-based communication with main window
+
+Dependencies:
+- PySide6: Qt framework for GUI components
+- Source.Core.BookService: Business logic for filtering
+- Source.Data.DatabaseModels: Data models and search criteria
+- logging: Application logging
+
+Architecture:
+- Signal-slot pattern for loose coupling
+- State management for filter persistence
+- Hierarchical data binding for category/subject relationships
+- Responsive design with proper error handling
 """
 
 import logging
-from typing import Optional, Callable, List
+from typing import List, Dict, Any, Optional
+
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QComboBox, QLineEdit, QFrame
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
+    QComboBox, QPushButton, QFrame, QGroupBox, QSpinBox,
+    QCheckBox, QSlider, QTextEdit, QScrollArea
 )
-from PySide6.QtCore import QTimer, Signal  # ✅ FIXED: Signal instead of pyqtSignal
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, Signal, QTimer, pyqtSignal
+from PySide6.QtGui import QFont, QPalette, QIcon
 
 from Source.Core.BookService import BookService
 from Source.Data.DatabaseModels import SearchCriteria
@@ -23,324 +46,706 @@ from Source.Data.DatabaseModels import SearchCriteria
 
 class FilterPanel(QWidget):
     """
-    Enhanced filter panel with proper category/subject coordination.
-    Uses simple BookService interface without direct database access.
+    Filter panel widget for book library filtering and search.
+    
+    Provides intuitive interface for:
+    - Category and subject hierarchical filtering
+    - Text search across multiple fields
+    - Advanced filtering options
+    - Filter state management
     """
     
-    # ✅ FIXED: Use Signal instead of pyqtSignal for PySide6
-    FilterChanged = Signal(SearchCriteria)  # Category/Subject filters
-    SearchRequested = Signal(SearchCriteria)  # Search queries
-    StatusUpdate = Signal(str)  # Status messages
+    # Signals for communication with main window
+    FiltersChanged = Signal(dict)  # Emitted when any filter changes
+    SearchRequested = Signal(str)  # Emitted when search is performed
+    ResetRequested = Signal()  # Emitted when filters are reset
+    CategoryChanged = Signal(str)  # Emitted when category selection changes
+    SubjectChanged = Signal(str)  # Emitted when subject selection changes
     
     def __init__(self, BookService: BookService, parent=None):
         """
-        Initialize filter panel with proper event coordination.
+        Initialize filter panel with book service.
         
         Args:
-            BookService: Service for database operations
-            parent: Parent widget
+            BookService: Business logic service for filtering operations
+            parent: Parent widget (optional)
         """
         super().__init__(parent)
         
         # Core dependencies
         self.BookService = BookService
-        self.Logger = logging.getLogger(__name__)
+        self.Logger = logging.getLogger(self.__class__.__name__)
         
-        # State tracking
-        self.IgnoreSignals = False  # Prevent recursive updates
-        self.CurrentCategory = ""
-        self.CurrentSubject = ""
+        # UI components
+        self.SearchLineEdit: Optional[QLineEdit] = None
+        self.CategoryComboBox: Optional[QComboBox] = None
+        self.SubjectComboBox: Optional[QComboBox] = None
+        self.ResetButton: Optional[QPushButton] = None
+        self.SearchButton: Optional[QPushButton] = None
+        self.RatingSlider: Optional[QSlider] = None
+        self.RatingLabel: Optional[QLabel] = None
+        self.ThumbnailCheckBox: Optional[QCheckBox] = None
         
-        # Search timer for debouncing
+        # State management
+        self.CurrentCategory: str = ""
+        self.CurrentSubject: str = ""
+        self.CurrentSearchTerm: str = ""
+        self.IsUpdatingUI: bool = False
+        
+        # Timers for debounced search
         self.SearchTimer = QTimer()
         self.SearchTimer.setSingleShot(True)
-        self.SearchTimer.timeout.connect(self._PerformSearch)
+        self.SearchTimer.timeout.connect(self.PerformSearch)
         
-        # UI Components (will be created in _CreateUI)
-        self.CategoryComboBox = None
-        self.SubjectComboBox = None
-        self.SearchLineEdit = None
-        
-        # Build interface
-        self._CreateUI()
-        self._LoadInitialData()
-        self._ConnectSignals()
+        # Initialize UI
+        self.InitializeUI()
+        self.LoadInitialData()
+        self.ConnectSignals()
+        self.ApplyStyles()
         
         self.Logger.info("FilterPanel initialized successfully")
     
-    def _CreateUI(self) -> None:
-        """Create the user interface"""
-        Layout = QVBoxLayout(self)
-        Layout.setContentsMargins(10, 10, 10, 10)
-        Layout.setSpacing(10)
-        
-        # Title
-        TitleLabel = QLabel("--- Options ---")
-        TitleLabel.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        TitleLabel.setStyleSheet("color: white; background-color: transparent;")
-        Layout.addWidget(TitleLabel)
-        
-        # Category selection
-        CategoryLabel = QLabel("Category:")
-        CategoryLabel.setStyleSheet("color: white; font-weight: bold;")
-        Layout.addWidget(CategoryLabel)
-        
-        self.CategoryComboBox = QComboBox()
-        self.CategoryComboBox.addItem("All Categories")  # Default placeholder
-        self.CategoryComboBox.setMinimumHeight(25)
-        Layout.addWidget(self.CategoryComboBox)
-        
-        # Subject selection  
-        SubjectLabel = QLabel("Subject:")
-        SubjectLabel.setStyleSheet("color: white; font-weight: bold;")
-        Layout.addWidget(SubjectLabel)
-        
-        self.SubjectComboBox = QComboBox()
-        self.SubjectComboBox.addItem("All Subjects")  # Default placeholder
-        self.SubjectComboBox.setMinimumHeight(25)
-        self.SubjectComboBox.setEnabled(False)  # Disabled until category selected
-        Layout.addWidget(self.SubjectComboBox)
-        
-        # Search
-        SearchLabel = QLabel("Search:")
-        SearchLabel.setStyleSheet("color: white; font-weight: bold;")
-        Layout.addWidget(SearchLabel)
-        
-        self.SearchLineEdit = QLineEdit()
-        self.SearchLineEdit.setPlaceholderText("Type Something Here")
-        self.SearchLineEdit.setMinimumHeight(25)
-        Layout.addWidget(self.SearchLineEdit)
-        
-        # Add stretch to push everything to top
-        Layout.addStretch()
-        
-        # Set panel styling
-        self.setStyleSheet("""
-            QWidget {
-                background-color: rgba(0, 50, 100, 180);
-                border-right: 2px solid rgba(255, 255, 255, 100);
-            }
-            QComboBox, QLineEdit {
-                background-color: rgba(255, 255, 255, 200);
-                border: 1px solid rgba(0, 0, 0, 100);
-                border-radius: 3px;
-                padding: 3px;
-            }
-            QComboBox:disabled {
-                background-color: rgba(200, 200, 200, 100);
-                color: gray;
-            }
-        """)
-        
-        # Set fixed width
-        self.setFixedWidth(320)
-    
-    def _LoadInitialData(self) -> None:
-        """Load categories from database using BookService methods"""
+    def InitializeUI(self) -> None:
+        """Initialize the user interface components."""
         try:
-            # ✅ FIXED: Use BookService methods instead of accessing Database directly
-            Categories = self.BookService.GetCategories()
+            # Main layout
+            MainLayout = QVBoxLayout(self)
+            MainLayout.setContentsMargins(12, 12, 12, 12)
+            MainLayout.setSpacing(16)
             
-            # Populate category dropdown
-            self.IgnoreSignals = True  # Prevent events during loading
-            for Category in Categories:
-                self.CategoryComboBox.addItem(Category)
-            self.IgnoreSignals = False
+            # Title
+            TitleLabel = QLabel("--- Options ---")
+            TitleLabel.setAlignment(Qt.AlignCenter)
+            TitleLabel.setFont(QFont("Segoe UI", 11, QFont.Bold))
+            MainLayout.addWidget(TitleLabel)
+            
+            # Search section
+            SearchGroup = self.CreateSearchSection()
+            MainLayout.addWidget(SearchGroup)
+            
+            # Filter section
+            FilterGroup = self.CreateFilterSection()
+            MainLayout.addWidget(FilterGroup)
+            
+            # Advanced options section
+            AdvancedGroup = self.CreateAdvancedSection()
+            MainLayout.addWidget(AdvancedGroup)
+            
+            # Action buttons
+            ButtonLayout = self.CreateActionButtons()
+            MainLayout.addLayout(ButtonLayout)
+            
+            # Add stretch to push everything to top
+            MainLayout.addStretch()
+            
+            self.Logger.debug("UI components initialized successfully")
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to initialize UI: {Error}")
+    
+    def CreateSearchSection(self) -> QGroupBox:
+        """Create the search input section."""
+        try:
+            SearchGroup = QGroupBox("Search")
+            SearchLayout = QVBoxLayout(SearchGroup)
+            SearchLayout.setSpacing(8)
+            
+            # Search label
+            SearchLabel = QLabel("Search:")
+            SearchLabel.setFont(QFont("Segoe UI", 9, QFont.Bold))
+            SearchLayout.addWidget(SearchLabel)
+            
+            # Search input
+            self.SearchLineEdit = QLineEdit()
+            self.SearchLineEdit.setPlaceholderText("Type Something Here")
+            self.SearchLineEdit.setMinimumHeight(32)
+            SearchLayout.addWidget(self.SearchLineEdit)
+            
+            # Search button
+            self.SearchButton = QPushButton("Search")
+            self.SearchButton.setMinimumHeight(32)
+            SearchLayout.addWidget(self.SearchButton)
+            
+            return SearchGroup
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to create search section: {Error}")
+            return QGroupBox()
+    
+    def CreateFilterSection(self) -> QGroupBox:
+        """Create the category and subject filter section."""
+        try:
+            FilterGroup = QGroupBox("Filters")
+            FilterLayout = QVBoxLayout(FilterGroup)
+            FilterLayout.setSpacing(12)
+            
+            # Category section
+            CategoryLabel = QLabel("Category:")
+            CategoryLabel.setFont(QFont("Segoe UI", 9, QFont.Bold))
+            FilterLayout.addWidget(CategoryLabel)
+            
+            self.CategoryComboBox = QComboBox()
+            self.CategoryComboBox.setMinimumHeight(32)
+            self.CategoryComboBox.addItem("All Categories")
+            FilterLayout.addWidget(self.CategoryComboBox)
+            
+            # Subject section
+            SubjectLabel = QLabel("Subject:")
+            SubjectLabel.setFont(QFont("Segoe UI", 9, QFont.Bold))
+            FilterLayout.addWidget(SubjectLabel)
+            
+            self.SubjectComboBox = QComboBox()
+            self.SubjectComboBox.setMinimumHeight(32)
+            self.SubjectComboBox.addItem("All Subjects")
+            self.SubjectComboBox.setEnabled(False)  # Disabled until category selected
+            FilterLayout.addWidget(self.SubjectComboBox)
+            
+            return FilterGroup
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to create filter section: {Error}")
+            return QGroupBox()
+    
+    def CreateAdvancedSection(self) -> QGroupBox:
+        """Create the advanced filtering options section."""
+        try:
+            AdvancedGroup = QGroupBox("Advanced")
+            AdvancedLayout = QVBoxLayout(AdvancedGroup)
+            AdvancedLayout.setSpacing(8)
+            
+            # Rating filter
+            RatingLayout = QHBoxLayout()
+            RatingLayout.addWidget(QLabel("Min Rating:"))
+            
+            self.RatingSlider = QSlider(Qt.Horizontal)
+            self.RatingSlider.setRange(0, 5)
+            self.RatingSlider.setValue(0)
+            self.RatingSlider.setTickPosition(QSlider.TicksBelow)
+            self.RatingSlider.setTickInterval(1)
+            RatingLayout.addWidget(self.RatingSlider)
+            
+            self.RatingLabel = QLabel("0")
+            self.RatingLabel.setMinimumWidth(20)
+            RatingLayout.addWidget(self.RatingLabel)
+            
+            AdvancedLayout.addLayout(RatingLayout)
+            
+            # Thumbnail filter
+            self.ThumbnailCheckBox = QCheckBox("Has Thumbnail")
+            AdvancedLayout.addWidget(self.ThumbnailCheckBox)
+            
+            return AdvancedGroup
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to create advanced section: {Error}")
+            return QGroupBox()
+    
+    def CreateActionButtons(self) -> QHBoxLayout:
+        """Create the action buttons section."""
+        try:
+            ButtonLayout = QHBoxLayout()
+            ButtonLayout.setSpacing(8)
+            
+            # Reset button
+            self.ResetButton = QPushButton("Reset")
+            self.ResetButton.setMinimumHeight(32)
+            ButtonLayout.addWidget(self.ResetButton)
+            
+            # Apply button
+            ApplyButton = QPushButton("Apply")
+            ApplyButton.setMinimumHeight(32)
+            ButtonLayout.addWidget(ApplyButton)
+            
+            return ButtonLayout
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to create action buttons: {Error}")
+            return QHBoxLayout()
+    
+    def LoadInitialData(self) -> None:
+        """Load initial data for dropdowns."""
+        try:
+            self.IsUpdatingUI = True
+            
+            # Load categories
+            Categories = self.BookService.GetCategories()
+            if self.CategoryComboBox:
+                self.CategoryComboBox.clear()
+                self.CategoryComboBox.addItem("All Categories")
+                for Category in Categories:
+                    self.CategoryComboBox.addItem(Category)
+            
+            self.IsUpdatingUI = False
             
             self.Logger.info(f"Loaded {len(Categories)} categories")
             
         except Exception as Error:
-            self.Logger.error(f"Data loading error: {Error}")
+            self.Logger.error(f"Failed to load initial data: {Error}")
+            self.IsUpdatingUI = False
     
-    def _ConnectSignals(self) -> None:
-        """Connect UI signals to handlers"""
-        # Category selection triggers subject loading
-        self.CategoryComboBox.currentTextChanged.connect(self._OnCategoryChanged)
-        
-        # Subject selection triggers book display
-        self.SubjectComboBox.currentTextChanged.connect(self._OnSubjectChanged)
-        
-        # Search as user types (with debouncing)
-        self.SearchLineEdit.textChanged.connect(self._OnSearchChanged)
-    
-    def _OnCategoryChanged(self, CategoryText: str) -> None:
-        """
-        Handle category selection changes.
-        Loads subjects for selected category and enables subject dropdown.
-        """
-        if self.IgnoreSignals:
-            return
-            
-        self.Logger.debug(f"Category changed to: '{CategoryText}'")
-        
-        # Clear search when category changes
-        if self.SearchLineEdit.text().strip():
-            self.IgnoreSignals = True
-            self.SearchLineEdit.clear()
-            self.IgnoreSignals = False
-        
-        # Update current category
-        self.CurrentCategory = CategoryText if CategoryText != "All Categories" else ""
-        
-        # Load subjects for this category
-        self._LoadSubjectsForCategory(CategoryText)
-        
-        # Reset subject selection
-        self.CurrentSubject = ""
-        
-        # If "All Categories" selected, disable subject dropdown
-        if CategoryText == "All Categories":
-            self.SubjectComboBox.setEnabled(False)
-            # Don't emit filter - user needs to select a specific category
-        else:
-            self.SubjectComboBox.setEnabled(True)
-            # Don't emit filter yet - wait for subject selection
-    
-    def _LoadSubjectsForCategory(self, CategoryText: str) -> None:
-        """
-        Load subjects for the selected category.
-        
-        Args:
-            CategoryText: Selected category name
-        """
+    def ConnectSignals(self) -> None:
+        """Connect UI signals to handlers."""
         try:
-            # Clear existing subjects
-            self.IgnoreSignals = True
-            self.SubjectComboBox.clear()
-            self.SubjectComboBox.addItem("All Subjects")
+            # Search signals
+            if self.SearchLineEdit:
+                self.SearchLineEdit.textChanged.connect(self.OnSearchTextChanged)
+                self.SearchLineEdit.returnPressed.connect(self.OnSearchPressed)
             
-            # ✅ FIXED: Use BookService method instead of database access
-            if CategoryText and CategoryText != "All Categories":
-                Subjects = self.BookService.GetSubjectsForCategory(CategoryText)
-                for Subject in Subjects:
-                    self.SubjectComboBox.addItem(Subject)
-                    
-                self.Logger.debug(f"Loaded {len(Subjects)} subjects for category '{CategoryText}'")
+            if self.SearchButton:
+                self.SearchButton.clicked.connect(self.OnSearchPressed)
             
-            self.IgnoreSignals = False
+            # Filter signals
+            if self.CategoryComboBox:
+                self.CategoryComboBox.currentTextChanged.connect(self.OnCategoryChanged)
+            
+            if self.SubjectComboBox:
+                self.SubjectComboBox.currentTextChanged.connect(self.OnSubjectChanged)
+            
+            # Advanced filter signals
+            if self.RatingSlider:
+                self.RatingSlider.valueChanged.connect(self.OnRatingChanged)
+            
+            if self.ThumbnailCheckBox:
+                self.ThumbnailCheckBox.stateChanged.connect(self.OnThumbnailFilterChanged)
+            
+            # Action button signals
+            if self.ResetButton:
+                self.ResetButton.clicked.connect(self.OnResetClicked)
+            
+            self.Logger.debug("UI signals connected successfully")
             
         except Exception as Error:
-            self.IgnoreSignals = False
-            self.Logger.error(f"Failed to load subjects for category '{CategoryText}': {Error}")
+            self.Logger.error(f"Failed to connect signals: {Error}")
     
-    def _OnSubjectChanged(self, SubjectText: str) -> None:
-        """
-        Handle subject selection changes.
-        Emits filter to display books for selected category/subject.
-        """
-        if self.IgnoreSignals:
-            return
+    def ApplyStyles(self) -> None:
+        """Apply custom styles to the filter panel."""
+        try:
+            self.setStyleSheet("""
+                QGroupBox {
+                    font-weight: bold;
+                    border: 2px solid #555555;
+                    border-radius: 8px;
+                    margin-top: 8px;
+                    padding-top: 8px;
+                    background-color: #3c3c3c;
+                    color: #ffffff;
+                }
+                
+                QGroupBox::title {
+                    subcontrol-origin: margin;
+                    left: 10px;
+                    padding: 0 8px 0 8px;
+                    color: #0078d4;
+                    font-size: 10pt;
+                }
+                
+                QLabel {
+                    color: #ffffff;
+                    font-size: 9pt;
+                }
+                
+                QLineEdit {
+                    background-color: #2b2b2b;
+                    border: 2px solid #555555;
+                    border-radius: 6px;
+                    padding: 6px;
+                    color: #ffffff;
+                    font-size: 9pt;
+                }
+                
+                QLineEdit:focus {
+                    border-color: #0078d4;
+                }
+                
+                QComboBox {
+                    background-color: #2b2b2b;
+                    border: 2px solid #555555;
+                    border-radius: 6px;
+                    padding: 6px;
+                    color: #ffffff;
+                    font-size: 9pt;
+                }
+                
+                QComboBox:focus {
+                    border-color: #0078d4;
+                }
+                
+                QComboBox::drop-down {
+                    border: none;
+                    width: 20px;
+                }
+                
+                QComboBox::down-arrow {
+                    image: url(down_arrow.png);
+                    width: 12px;
+                    height: 12px;
+                }
+                
+                QComboBox QAbstractItemView {
+                    background-color: #3c3c3c;
+                    color: #ffffff;
+                    selection-background-color: #0078d4;
+                    border: 1px solid #555555;
+                }
+                
+                QPushButton {
+                    background-color: #0078d4;
+                    color: #ffffff;
+                    border: none;
+                    border-radius: 6px;
+                    padding: 8px 16px;
+                    font-weight: 500;
+                    font-size: 9pt;
+                }
+                
+                QPushButton:hover {
+                    background-color: #106ebe;
+                }
+                
+                QPushButton:pressed {
+                    background-color: #005a9e;
+                }
+                
+                QPushButton:disabled {
+                    background-color: #555555;
+                    color: #888888;
+                }
+                
+                QSlider::groove:horizontal {
+                    border: 1px solid #555555;
+                    height: 6px;
+                    background: #2b2b2b;
+                    border-radius: 3px;
+                }
+                
+                QSlider::handle:horizontal {
+                    background: #0078d4;
+                    border: 1px solid #0078d4;
+                    width: 16px;
+                    height: 16px;
+                    border-radius: 8px;
+                    margin: -5px 0;
+                }
+                
+                QSlider::handle:horizontal:hover {
+                    background: #106ebe;
+                    border-color: #106ebe;
+                }
+                
+                QCheckBox {
+                    color: #ffffff;
+                    font-size: 9pt;
+                }
+                
+                QCheckBox::indicator {
+                    width: 16px;
+                    height: 16px;
+                    border: 2px solid #555555;
+                    border-radius: 3px;
+                    background-color: #2b2b2b;
+                }
+                
+                QCheckBox::indicator:checked {
+                    background-color: #0078d4;
+                    border-color: #0078d4;
+                }
+            """)
             
-        self.Logger.debug(f"Subject changed to: '{SubjectText}'")
-        
-        # Update current subject
-        self.CurrentSubject = SubjectText if SubjectText != "All Subjects" else ""
-        
-        # Only emit filter if we have a valid category and subject
-        if self.CurrentCategory and self.CurrentSubject:
-            Criteria = SearchCriteria()
-            Criteria.Categories = [self.CurrentCategory]
-            Criteria.Subjects = [self.CurrentSubject]
+            self.Logger.debug("Styles applied successfully")
             
-            self.FilterChanged.emit(Criteria)
-            self.StatusUpdate.emit(f"Showing books: {self.CurrentCategory} → {self.CurrentSubject}")
-            
-        elif self.CurrentCategory and SubjectText == "All Subjects":
-            # Show all books in category
-            Criteria = SearchCriteria()
-            Criteria.Categories = [self.CurrentCategory]
-            
-            self.FilterChanged.emit(Criteria)
-            self.StatusUpdate.emit(f"Showing all books in: {self.CurrentCategory}")
+        except Exception as Error:
+            self.Logger.error(f"Failed to apply styles: {Error}")
     
-    def _OnSearchChanged(self, SearchText: str) -> None:
-        """
-        Handle search text changes.
-        Clears category/subject selections and shows search results.
-        """
-        if self.IgnoreSignals:
-            return
+    def OnSearchTextChanged(self, Text: str) -> None:
+        """Handle search text changes with debouncing."""
+        try:
+            if self.IsUpdatingUI:
+                return
             
-        self.SearchTimer.stop()
-        
-        if len(SearchText.strip()) > 1:
-            # Clear dropdowns when searching
-            self.IgnoreSignals = True
-            self.CategoryComboBox.setCurrentText("All Categories")
-            self.SubjectComboBox.clear()
-            self.SubjectComboBox.addItem("All Subjects")
-            self.SubjectComboBox.setEnabled(False)
-            self.IgnoreSignals = False
+            # Debounce search to avoid excessive queries
+            self.SearchTimer.stop()
+            self.SearchTimer.start(500)  # 500ms delay
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to handle search text change: {Error}")
+    
+    def OnSearchPressed(self) -> None:
+        """Handle search button click or Enter press."""
+        try:
+            self.SearchTimer.stop()
+            self.PerformSearch()
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to handle search press: {Error}")
+    
+    def PerformSearch(self) -> None:
+        """Perform the actual search operation."""
+        try:
+            if not self.SearchLineEdit:
+                return
+            
+            SearchTerm = self.SearchLineEdit.text().strip()
+            self.CurrentSearchTerm = SearchTerm
+            
+            if SearchTerm:
+                self.Logger.debug(f"Performing search: '{SearchTerm}'")
+                self.SearchRequested.emit(SearchTerm)
+            else:
+                # Empty search - apply current filters
+                self.EmitFiltersChanged()
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to perform search: {Error}")
+    
+    def OnCategoryChanged(self, Category: str) -> None:
+        """Handle category selection change."""
+        try:
+            if self.IsUpdatingUI:
+                return
+            
+            self.CurrentCategory = Category if Category != "All Categories" else ""
+            self.Logger.debug(f"Category changed to: '{Category}'")
+            
+            # Update subjects for selected category
+            self.UpdateSubjects(self.CurrentCategory)
+            
+            # Clear search when filter changes
+            self.ClearSearch()
+            
+            # Emit category change signal
+            self.CategoryChanged.emit(self.CurrentCategory)
+            
+            # Emit filters changed
+            self.EmitFiltersChanged()
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to handle category change: {Error}")
+    
+    def OnSubjectChanged(self, Subject: str) -> None:
+        """Handle subject selection change."""
+        try:
+            if self.IsUpdatingUI:
+                return
+            
+            self.CurrentSubject = Subject if Subject != "All Subjects" else ""
+            self.Logger.debug(f"Subject changed to: '{Subject}'")
+            
+            # Clear search when filter changes
+            self.ClearSearch()
+            
+            # Emit subject change signal
+            self.SubjectChanged.emit(self.CurrentSubject)
+            
+            # Emit filters changed
+            self.EmitFiltersChanged()
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to handle subject change: {Error}")
+    
+    def OnRatingChanged(self, Rating: int) -> None:
+        """Handle rating slider change."""
+        try:
+            if self.RatingLabel:
+                self.RatingLabel.setText(str(Rating))
+            
+            if not self.IsUpdatingUI:
+                self.EmitFiltersChanged()
+                
+        except Exception as Error:
+            self.Logger.error(f"Failed to handle rating change: {Error}")
+    
+    def OnThumbnailFilterChanged(self, State: int) -> None:
+        """Handle thumbnail filter checkbox change."""
+        try:
+            if not self.IsUpdatingUI:
+                self.EmitFiltersChanged()
+                
+        except Exception as Error:
+            self.Logger.error(f"Failed to handle thumbnail filter change: {Error}")
+    
+    def OnResetClicked(self) -> None:
+        """Handle reset button click."""
+        try:
+            self.Logger.info("Resetting all filters")
+            
+            self.IsUpdatingUI = True
+            
+            # Reset UI components
+            if self.SearchLineEdit:
+                self.SearchLineEdit.clear()
+            
+            if self.CategoryComboBox:
+                self.CategoryComboBox.setCurrentIndex(0)
+            
+            if self.SubjectComboBox:
+                self.SubjectComboBox.setCurrentIndex(0)
+                self.SubjectComboBox.setEnabled(False)
+            
+            if self.RatingSlider:
+                self.RatingSlider.setValue(0)
+            
+            if self.ThumbnailCheckBox:
+                self.ThumbnailCheckBox.setChecked(False)
             
             # Reset state
             self.CurrentCategory = ""
             self.CurrentSubject = ""
+            self.CurrentSearchTerm = ""
             
-            # Start search timer (debounced)
-            self.SearchTimer.start(400)
-            self.StatusUpdate.emit(f"Searching for: {SearchText.strip()}")
+            self.IsUpdatingUI = False
             
-        elif len(SearchText.strip()) == 0:
-            # Search cleared - reset to initial state
-            self._ResetToInitialState()
-    
-    def _PerformSearch(self) -> None:
-        """Perform search with current search text"""
-        SearchText = self.SearchLineEdit.text().strip()
-        
-        if SearchText:
-            Criteria = SearchCriteria()
-            Criteria.SearchTerm = SearchText
+            # Emit reset signal
+            self.ResetRequested.emit()
             
-            self.SearchRequested.emit(Criteria)
-            self.Logger.debug(f"Search performed: '{SearchText}'")
+        except Exception as Error:
+            self.Logger.error(f"Failed to handle reset: {Error}")
+            self.IsUpdatingUI = False
     
-    def _ResetToInitialState(self) -> None:
-        """Reset panel to initial state (no selections)"""
-        self.IgnoreSignals = True
-        
-        # Reset dropdowns
-        self.CategoryComboBox.setCurrentText("All Categories")
-        self.SubjectComboBox.clear()
-        self.SubjectComboBox.addItem("All Subjects")
-        self.SubjectComboBox.setEnabled(False)
-        
-        # Reset state
-        self.CurrentCategory = ""
-        self.CurrentSubject = ""
-        
-        self.IgnoreSignals = False
-        
-        # Clear grid
-        EmptyCriteria = SearchCriteria()
-        self.FilterChanged.emit(EmptyCriteria)
-        self.StatusUpdate.emit("Select a category to begin")
+    def UpdateSubjects(self, Category: str) -> None:
+        """Update subjects dropdown based on selected category."""
+        try:
+            if not self.SubjectComboBox:
+                return
+            
+            self.IsUpdatingUI = True
+            
+            # Clear current subjects
+            self.SubjectComboBox.clear()
+            self.SubjectComboBox.addItem("All Subjects")
+            
+            if Category:
+                # Load subjects for category
+                Subjects = self.BookService.GetSubjectsForCategory(Category)
+                for Subject in Subjects:
+                    self.SubjectComboBox.addItem(Subject)
+                
+                self.SubjectComboBox.setEnabled(True)
+                self.Logger.debug(f"Loaded {len(Subjects)} subjects for category '{Category}'")
+            else:
+                # No category selected
+                self.SubjectComboBox.setEnabled(False)
+            
+            # Reset subject selection
+            self.CurrentSubject = ""
+            
+            self.IsUpdatingUI = False
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to update subjects: {Error}")
+            self.IsUpdatingUI = False
     
-    def GetCurrentCriteria(self) -> SearchCriteria:
-        """
-        Get current search criteria.
-        
-        Returns:
-            SearchCriteria object with current filters
-        """
-        Criteria = SearchCriteria()
-        
-        # Search term takes priority
-        SearchText = self.SearchLineEdit.text().strip()
-        if SearchText:
-            Criteria.SearchTerm = SearchText
+    def ClearSearch(self) -> None:
+        """Clear the search field when filters change."""
+        try:
+            if self.SearchLineEdit and self.SearchLineEdit.text():
+                self.IsUpdatingUI = True
+                self.SearchLineEdit.clear()
+                self.CurrentSearchTerm = ""
+                self.IsUpdatingUI = False
+                
+        except Exception as Error:
+            self.Logger.error(f"Failed to clear search: {Error}")
+    
+    def EmitFiltersChanged(self) -> None:
+        """Emit filters changed signal with current criteria."""
+        try:
+            Criteria = self.GetCurrentCriteria()
+            self.FiltersChanged.emit(Criteria)
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to emit filters changed: {Error}")
+    
+    def GetCurrentCriteria(self) -> Dict[str, Any]:
+        """Get current filter criteria as dictionary."""
+        try:
+            Criteria = {}
+            
+            # Search term
+            if self.CurrentSearchTerm:
+                Criteria['SearchTerm'] = self.CurrentSearchTerm
+            
+            # Category and subject
+            if self.CurrentCategory:
+                Criteria['Category'] = self.CurrentCategory
+            
+            if self.CurrentSubject:
+                Criteria['Subject'] = self.CurrentSubject
+            
+            # Rating filter
+            if self.RatingSlider and self.RatingSlider.value() > 0:
+                Criteria['MinRating'] = self.RatingSlider.value()
+            
+            # Thumbnail filter
+            if self.ThumbnailCheckBox and self.ThumbnailCheckBox.isChecked():
+                Criteria['HasThumbnail'] = True
+            
             return Criteria
-        
-        # Otherwise use category/subject filters
-        if self.CurrentCategory:
-            Criteria.Categories = [self.CurrentCategory]
-        if self.CurrentSubject:
-            Criteria.Subjects = [self.CurrentSubject]
-        
-        return Criteria
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to get current criteria: {Error}")
+            return {}
     
     def RefreshData(self) -> None:
-        """Refresh filter data from database"""
-        self._LoadInitialData()
-        self._ResetToInitialState()
-        self.Logger.info("Filter data refreshed")
+        """Refresh filter data from database."""
+        try:
+            self.Logger.info("Refreshing filter panel data")
+            
+            # Clear cache in book service
+            self.BookService.ClearCache()
+            
+            # Reload categories
+            self.LoadInitialData()
+            
+            # Reset to initial state
+            self.OnResetClicked()
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to refresh data: {Error}")
+    
+    def SetFilterCriteria(self, Criteria: Dict[str, Any]) -> None:
+        """Set filter criteria programmatically."""
+        try:
+            self.IsUpdatingUI = True
+            
+            # Set search term
+            SearchTerm = Criteria.get('SearchTerm', '')
+            if self.SearchLineEdit:
+                self.SearchLineEdit.setText(SearchTerm)
+            self.CurrentSearchTerm = SearchTerm
+            
+            # Set category
+            Category = Criteria.get('Category', '')
+            if self.CategoryComboBox and Category:
+                Index = self.CategoryComboBox.findText(Category)
+                if Index >= 0:
+                    self.CategoryComboBox.setCurrentIndex(Index)
+            self.CurrentCategory = Category
+            
+            # Update subjects and set subject
+            if Category:
+                self.UpdateSubjects(Category)
+            
+            Subject = Criteria.get('Subject', '')
+            if self.SubjectComboBox and Subject:
+                Index = self.SubjectComboBox.findText(Subject)
+                if Index >= 0:
+                    self.SubjectComboBox.setCurrentIndex(Index)
+            self.CurrentSubject = Subject
+            
+            # Set rating
+            MinRating = Criteria.get('MinRating', 0)
+            if self.RatingSlider:
+                self.RatingSlider.setValue(MinRating)
+            
+            # Set thumbnail filter
+            HasThumbnail = Criteria.get('HasThumbnail', False)
+            if self.ThumbnailCheckBox:
+                self.ThumbnailCheckBox.setChecked(HasThumbnail)
+            
+            self.IsUpdatingUI = False
+            
+            self.Logger.debug(f"Set filter criteria: {Criteria}")
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to set filter criteria: {Error}")
+            self.IsUpdatingUI = False

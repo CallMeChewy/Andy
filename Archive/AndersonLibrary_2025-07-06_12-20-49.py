@@ -2,10 +2,10 @@
 # Path: AndersonLibrary.py
 # Standard: AIDEV-PascalCase-1.8
 # Created: 2025-07-06
-# Last Modified: 2025-07-06  12:15PM
+# Last Modified: 2025-07-06  12:00PM
 """
-Description: Anderson's Library Entry Point - Original Pattern (Fixed)
-Follows the exact pattern from Legacy/Andy.py to prevent system lockups.
+Description: Anderson's Library Entry Point - CustomWindow Wrapper Pattern
+Uses the original CustomWindow wrapper approach to prevent system lockups.
 """
 
 import sys
@@ -28,9 +28,9 @@ except ImportError as ImportError:
     print("💡 Please install it with: pip install PySide6")
     sys.exit(1)
 
-# Import our modules using original pattern
+# Import our fixed modules using wrapper approach
 try:
-    from Source.Interface.MainWindow import MainWindow
+    from Source.Interface.MainWindow import MainWindow, CreateAndShowMainWindow
     from Source.Interface.CustomWindow import CustomWindow
     from Source.Core.DatabaseManager import DatabaseManager
     from Source.Core.BookService import BookService
@@ -47,7 +47,7 @@ def PrintStartupBanner() -> None:
     print("📚 Digital Library Management System")
     print("🎯 Project Himalaya - BowersWorld.com")
     print("⚡ Modular Architecture - Design Standard v1.8")
-    print("🔧 Using Original CustomWindow Pattern")
+    print("🔧 Using CustomWindow Wrapper (Like Original)")
     print("=" * 50)
 
 
@@ -67,7 +67,7 @@ def ValidateEnvironment() -> bool:
         "Source/Interface/FilterPanel.py",
         "Source/Interface/BookGrid.py",
         "Source/Interface/MainWindow.py",
-        "Source/Interface/CustomWindow.py"  # ✅ Critical for original pattern
+        "Source/Interface/CustomWindow.py"  # ✅ Critical for wrapper approach
     ]
     
     MissingFiles = []
@@ -132,9 +132,9 @@ def InitializeLogging() -> None:
     )
 
 
-def RunApplicationOriginalPattern() -> int:
+def RunApplicationWithWrapper() -> int:
     """
-    Run Anderson's Library using the exact original pattern from Legacy/Andy.py.
+    Run Anderson's Library using the CustomWindow wrapper pattern.
     
     Returns:
         Application exit code
@@ -156,12 +156,20 @@ def RunApplicationOriginalPattern() -> int:
         print("🚀 Starting Anderson's Library...")
         print("=" * 50)
         
-        # Create QApplication (like original Andy.py)
-        App = QApplication(sys.argv)
+        # Create QApplication
+        App = QApplication.instance()
+        if App is None:
+            App = QApplication(sys.argv)
+        
+        # Set application properties
         App.setApplicationName("Anderson's Library")
         App.setApplicationVersion("2.0")
         App.setOrganizationName("Project Himalaya")
         App.setOrganizationDomain("BowersWorld.com")
+        
+        # Set application font
+        Font = QFont("Ubuntu", 10)
+        App.setFont(Font)
         
         # Apply the original stylesheet (exactly like Legacy/Andy.py)
         App.setStyleSheet("""
@@ -194,23 +202,20 @@ def RunApplicationOriginalPattern() -> int:
         """)
         
         try:
-            # Follow the EXACT original pattern from Legacy/Andy.py:
+            # Create main window using wrapper pattern (like original Andy.py)
+            Logger.info("Creating main window with CustomWindow wrapper...")
+            
+            # This follows the exact pattern from Legacy/Andy.py:
             # main_window = MainWindow()
             # window = CustomWindow("Anderson's Library", main_window)
             # window.showMaximized()
             
-            Logger.info("Creating main window (original pattern)...")
             MainWindowInstance = MainWindow()
+            WindowWrapper = MainWindowInstance.GetWrapper()
             
-            Logger.info("Wrapping with CustomWindow...")
-            WindowWrapper = CustomWindow("Anderson's Library", MainWindowInstance)
+            Logger.info("Anderson's Library started successfully with CustomWindow wrapper")
             
-            Logger.info("Showing maximized...")
-            WindowWrapper.showMaximized()
-            
-            Logger.info("Anderson's Library started successfully with original pattern")
-            
-            # Run the event loop (like original)
+            # Run the event loop
             ExitCode = App.exec()
             Logger.info(f"Application exited with code: {ExitCode}")
             return ExitCode
@@ -251,10 +256,10 @@ def ShowQuickHelp() -> None:
     print("│   ├── FilterPanel.py")
     print("│   └── BookGrid.py")
     print("└── Utils/")
-    print("\n🔧 Original Pattern:")
-    print("• main_window = MainWindow()          # Content widget")
-    print("• window = CustomWindow(..., main_window)  # Wrapper")
-    print("• window.showMaximized()             # Display")
+    print("\n🔧 CustomWindow Pattern:")
+    print("• Original used CustomWindow wrapper for special window handling")
+    print("• New modular version maintains this approach for compatibility")
+    print("• Prevents system lockups that occur with standard QMainWindow")
     print("\n🔗 Contact: HimalayaProject1@gmail.com")
 
 
@@ -267,9 +272,9 @@ if __name__ == "__main__":
         elif sys.argv[1] in ["--version", "-v"]:
             print("Anderson's Library v2.0 - Professional Edition")
             print("Built with Design Standard v1.8")
-            print("Using Original CustomWindow Pattern")
+            print("Using CustomWindow Wrapper Pattern")
             sys.exit(0)
     
-    # Run the application with original pattern
-    ExitCode = RunApplicationOriginalPattern()
+    # Run the application with wrapper pattern
+    ExitCode = RunApplicationWithWrapper()
     sys.exit(ExitCode)

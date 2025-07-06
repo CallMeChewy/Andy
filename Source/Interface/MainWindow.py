@@ -2,22 +2,41 @@
 # Path: Source/Interface/MainWindow.py
 # Standard: AIDEV-PascalCase-1.8
 # Created: 2025-07-06
-# Last Modified: 2025-07-06  08:55AM
+# Last Modified: 2025-07-06  03:42PM
 """
-Description: UPDATED DATABASE PATH - Anderson's Library Main Window
-Updated to use the new database location with BLOB thumbnails and relational schema.
+Description: Main Application Window for Anderson's Library - FIXED PySide6 Imports
+Orchestrates all UI components and provides the main application interface.
+CRITICAL FIX: Corrected PyQt syntax errors to proper PySide6 Signal imports.
+
+Features:
+- Component orchestration and lifecycle management
+- Event routing between filter panel and book grid
+- Status bar with statistics and progress indication
+- Menu system and toolbar integration
+- Theme and styling management
+- Window state persistence
+- Error handling and user feedback
+
+Dependencies:
+- PySide6: Qt framework for GUI components (CORRECTED IMPORTS)
+- Source.Core.DatabaseManager: Database operations
+- Source.Core.BookService: Business logic
+- Source.Interface.FilterPanel: Left sidebar filters
+- Source.Interface.BookGrid: Main book display
+- logging: Application logging
 """
 
 import sys
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, 
-    QFrame, QStatusBar, QMessageBox, QSplitter
+    QFrame, QStatusBar, QMessageBox, QSplitter, QMenuBar, QMenu,
+    QProgressBar, QLabel, QToolBar, QPushButton
 )
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtCore import Qt, QTimer, Signal  # ✅ FIXED: Signal not pyqtSignal
+from PySide6.QtGui import QFont, QIcon, QAction, QPixmap
 
 from Source.Core.DatabaseManager import DatabaseManager
 from Source.Core.BookService import BookService
@@ -27,323 +46,678 @@ from Source.Interface.BookGrid import BookGrid
 
 class MainWindow(QMainWindow):
     """
-    UPDATED - Anderson's Library with new database path and BLOB thumbnail support.
+    Main application window for Anderson's Library.
+    
+    Coordinates all UI components and provides the primary user interface.
+    Handles application lifecycle, event routing, and user interactions.
     """
     
+    # ✅ FIXED: Using Signal instead of pyqtSignal
+    BookSelected = Signal(dict)  # Emitted when a book is selected
+    FiltersChanged = Signal(dict)  # Emitted when filters change
+    StatusUpdated = Signal(str)  # Emitted when status should update
+    
     def __init__(self):
+        """Initialize the main window and all components."""
         super().__init__()
+        
+        # Setup logging
         self.Logger = logging.getLogger(self.__class__.__name__)
         
-        # Initialize core components
-        self.DatabaseManager = None
-        self.BookService = None
-        self.FilterPanel = None
-        self.BookGrid = None
+        # Core components
+        self.DatabaseManager: Optional[DatabaseManager] = None
+        self.BookService: Optional[BookService] = None
         
-        # Initialize UI
+        # UI components
+        self.FilterPanel: Optional[FilterPanel] = None
+        self.BookGrid: Optional[BookGrid] = None
+        self.CentralWidget: Optional[QWidget] = None
+        self.MainSplitter: Optional[QSplitter] = None
+        self.StatusBar: Optional[QStatusBar] = None
+        self.ProgressBar: Optional[QProgressBar] = None
+        self.StatusLabel: Optional[QLabel] = None
+        
+        # State management
+        self.CurrentBooks: List[Dict[str, Any]] = []
+        self.IsLoading: bool = False
+        self.LastFilterCriteria: Dict[str, Any] = {}
+        
+        # Initialize application
         self.InitializeComponents()
         self.SetupUI()
         self.ConnectSignals()
-        self.ApplyOriginalBeautifulTheme()
+        self.ApplyTheme()
         self.LoadInitialData()
         
-        self.Logger.info("MainWindow initialized with new database schema")
+        self.Logger.info("MainWindow initialized successfully")
     
-    def InitializeComponents(self):
-        """Initialize core application components with new database path."""
+    def InitializeComponents(self) -> None:
+        """Initialize core application components."""
         try:
-            # NEW: Use the updated database path with BLOB thumbnails
+            # Initialize database manager
             self.DatabaseManager = DatabaseManager("Data/Databases/MyLibrary.db")
+            
+            # Validate database schema
+            if not self.DatabaseManager.ValidateSchema():
+                self.ShowCriticalError("Database schema validation failed")
+                return
+            
+            # Initialize book service
             self.BookService = BookService(self.DatabaseManager)
+            
+            # Initialize UI components
             self.FilterPanel = FilterPanel(self.BookService)
-            self.BookGrid = BookGrid()
+            self.BookGrid = BookGrid(self.BookService)
+            
+            self.Logger.info("Core components initialized successfully")
             
         except Exception as Error:
-            self.Logger.error(f"Failed to initialize components: {Error}")
-            QMessageBox.critical(self, "Initialization Error", 
-                               f"Failed to initialize application components:\n{Error}")
-            sys.exit(1)
+            self.Logger.critical(f"Failed to initialize components: {Error}")
+            self.ShowCriticalError(f"Failed to initialize application: {Error}")
     
-    def SetupUI(self):
-        """Setup the main user interface."""
-        self.setWindowTitle("Anderson's Library")
-        self.setMinimumSize(1200, 800)
-        
-        # Start maximized
-        self.showMaximized()
-        
-        # Create central widget
-        CentralWidget = QWidget()
-        self.setCentralWidget(CentralWidget)
-        
-        # Create main layout
-        MainLayout = QHBoxLayout(CentralWidget)
-        MainLayout.setContentsMargins(5, 5, 5, 5)
-        
-        # Create splitter
-        Splitter = QSplitter(Qt.Horizontal)
-        MainLayout.addWidget(Splitter)
-        
-        # Setup left panel (filters)
-        LeftPanel = self.CreateLeftPanel()
-        Splitter.addWidget(LeftPanel)
-        
-        # Setup right panel (book grid)
-        RightPanel = self.CreateRightPanel()
-        Splitter.addWidget(RightPanel)
-        
-        # Original proportions
-        Splitter.setSizes([350, 1050])
-        Splitter.setCollapsible(0, False)
-        
-        # Original red status bar
-        self.SetupStatusBar()
-    
-    def CreateLeftPanel(self) -> QFrame:
-        """Create the left panel with original styling."""
-        LeftPanel = QFrame()
-        LeftPanel.setObjectName("LeftPanel")
-        LeftPanel.setFrameStyle(QFrame.StyledPanel)
-        LeftPanel.setFixedWidth(350)
-        
-        # Left panel layout
-        LeftLayout = QVBoxLayout(LeftPanel)
-        LeftLayout.setContentsMargins(15, 15, 15, 15)
-        LeftLayout.setSpacing(10)
-        
-        # Add filter panel
-        LeftLayout.addWidget(self.FilterPanel)
-        
-        # Add stretch to push everything to top
-        LeftLayout.addStretch()
-        
-        return LeftPanel
-    
-    def CreateRightPanel(self) -> QFrame:
-        """Create the right panel."""
-        RightPanel = QFrame()
-        RightPanel.setFrameStyle(QFrame.StyledPanel)
-        
-        # Right panel layout
-        RightLayout = QVBoxLayout(RightPanel)
-        RightLayout.setContentsMargins(5, 5, 5, 5)
-        
-        # Add book grid
-        RightLayout.addWidget(self.BookGrid)
-        
-        return RightPanel
-    
-    def SetupStatusBar(self):
-        """Setup the original red status bar."""
-        self.StatusBar = QStatusBar()
-        self.setStatusBar(self.StatusBar)
-        self.StatusBar.setStyleSheet("background-color: #780000; color: white;")
-        self.StatusBar.showMessage("Ready - Now with BLOB thumbnails and relational schema!")
-    
-    def ConnectSignals(self):
-        """Connect signals with compatibility for different versions."""
+    def SetupUI(self) -> None:
+        """Setup the user interface layout and components."""
         try:
-            # Try multiple signal names for maximum compatibility
-            if hasattr(self.FilterPanel, 'SearchRequested'):
-                self.FilterPanel.SearchRequested.connect(self.OnSearchRequested)
+            # Set window properties
+            self.setWindowTitle("Anderson's Library - Professional Edition")
+            self.setMinimumSize(1200, 800)
+            self.resize(1600, 1000)
             
-            if hasattr(self.FilterPanel, 'FilterChanged'):
-                self.FilterPanel.FilterChanged.connect(self.OnFiltersChanged)
-            elif hasattr(self.FilterPanel, 'FiltersChanged'):
-                self.FilterPanel.FiltersChanged.connect(self.OnFiltersChanged)
+            # Create menu bar
+            self.CreateMenuBar()
             
-            if hasattr(self.BookGrid, 'BookClicked'):
-                self.BookGrid.BookClicked.connect(self.OnBookClicked)
+            # Create toolbar
+            self.CreateToolBar()
             
-            self.Logger.info("Signals connected successfully")
+            # Create central widget
+            self.CentralWidget = QWidget()
+            self.setCentralWidget(self.CentralWidget)
+            
+            # Create main layout with splitter
+            MainLayout = QHBoxLayout(self.CentralWidget)
+            MainLayout.setContentsMargins(8, 8, 8, 8)
+            MainLayout.setSpacing(8)
+            
+            # Create splitter for resizable panels
+            self.MainSplitter = QSplitter(Qt.Orientation.Horizontal)
+            MainLayout.addWidget(self.MainSplitter)
+            
+            # Add filter panel (left side)
+            if self.FilterPanel:
+                self.FilterPanel.setMaximumWidth(350)
+                self.FilterPanel.setMinimumWidth(250)
+                self.MainSplitter.addWidget(self.FilterPanel)
+            
+            # Add book grid (right side)
+            if self.BookGrid:
+                self.MainSplitter.addWidget(self.BookGrid)
+            
+            # Set splitter proportions (25% filter, 75% books)
+            self.MainSplitter.setSizes([300, 1200])
+            
+            # Create status bar
+            self.CreateStatusBar()
+            
+            self.Logger.debug("UI layout setup completed")
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to setup UI: {Error}")
+            self.ShowError(f"UI setup failed: {Error}")
+    
+    def CreateMenuBar(self) -> None:
+        """Create the application menu bar."""
+        try:
+            MenuBar = self.menuBar()
+            
+            # File menu
+            FileMenu = MenuBar.addMenu("&File")
+            
+            RefreshAction = QAction("&Refresh Library", self)
+            RefreshAction.setShortcut("F5")
+            RefreshAction.triggered.connect(self.RefreshLibrary)
+            FileMenu.addAction(RefreshAction)
+            
+            FileMenu.addSeparator()
+            
+            ExitAction = QAction("E&xit", self)
+            ExitAction.setShortcut("Ctrl+Q")
+            ExitAction.triggered.connect(self.close)
+            FileMenu.addAction(ExitAction)
+            
+            # View menu
+            ViewMenu = MenuBar.addMenu("&View")
+            
+            GridViewAction = QAction("&Grid View", self)
+            GridViewAction.triggered.connect(lambda: self.SetViewMode("grid"))
+            ViewMenu.addAction(GridViewAction)
+            
+            ListViewAction = QAction("&List View", self)
+            ListViewAction.triggered.connect(lambda: self.SetViewMode("list"))
+            ViewMenu.addAction(ListViewAction)
+            
+            # Tools menu
+            ToolsMenu = MenuBar.addMenu("&Tools")
+            
+            StatsAction = QAction("Database &Statistics", self)
+            StatsAction.triggered.connect(self.ShowDatabaseStats)
+            ToolsMenu.addAction(StatsAction)
+            
+            # Help menu
+            HelpMenu = MenuBar.addMenu("&Help")
+            
+            AboutAction = QAction("&About", self)
+            AboutAction.triggered.connect(self.ShowAbout)
+            HelpMenu.addAction(AboutAction)
+            
+            self.Logger.debug("Menu bar created successfully")
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to create menu bar: {Error}")
+    
+    def CreateToolBar(self) -> None:
+        """Create the application toolbar."""
+        try:
+            ToolBar = self.addToolBar("Main")
+            ToolBar.setMovable(False)
+            
+            # Refresh button
+            RefreshButton = QPushButton("Refresh")
+            RefreshButton.clicked.connect(self.RefreshLibrary)
+            ToolBar.addWidget(RefreshButton)
+            
+            ToolBar.addSeparator()
+            
+            # View mode buttons
+            GridButton = QPushButton("Grid")
+            GridButton.clicked.connect(lambda: self.SetViewMode("grid"))
+            ToolBar.addWidget(GridButton)
+            
+            ListButton = QPushButton("List")
+            ListButton.clicked.connect(lambda: self.SetViewMode("list"))
+            ToolBar.addWidget(ListButton)
+            
+            self.Logger.debug("Toolbar created successfully")
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to create toolbar: {Error}")
+    
+    def CreateStatusBar(self) -> None:
+        """Create and configure the status bar."""
+        try:
+            self.StatusBar = self.statusBar()
+            
+            # Main status label
+            self.StatusLabel = QLabel("Ready")
+            self.StatusBar.addWidget(self.StatusLabel)
+            
+            # Progress bar (hidden by default)
+            self.ProgressBar = QProgressBar()
+            self.ProgressBar.setVisible(False)
+            self.ProgressBar.setMaximumWidth(200)
+            self.StatusBar.addPermanentWidget(self.ProgressBar)
+            
+            # Database stats label
+            self.DatabaseStatsLabel = QLabel("")
+            self.StatusBar.addPermanentWidget(self.DatabaseStatsLabel)
+            
+            self.Logger.debug("Status bar created successfully")
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to create status bar: {Error}")
+    
+    def ConnectSignals(self) -> None:
+        """Connect signals between components."""
+        try:
+            if not self.FilterPanel or not self.BookGrid:
+                self.Logger.warning("Components not available for signal connection")
+                return
+            
+            # Filter panel signals
+            self.FilterPanel.FiltersChanged.connect(self.OnFiltersChanged)
+            self.FilterPanel.SearchRequested.connect(self.OnSearchRequested)
+            self.FilterPanel.ResetRequested.connect(self.OnResetRequested)
+            
+            # Book grid signals
+            self.BookGrid.BookSelected.connect(self.OnBookSelected)
+            self.BookGrid.BookOpened.connect(self.OnBookOpened)
+            self.BookGrid.SelectionChanged.connect(self.OnSelectionChanged)
+            
+            # Internal signals
+            self.StatusUpdated.connect(self.UpdateStatusBar)
+            
+            self.Logger.debug("Component signals connected successfully")
             
         except Exception as Error:
             self.Logger.error(f"Failed to connect signals: {Error}")
     
-    def ApplyOriginalBeautifulTheme(self):
-        """Apply the original beautiful blue gradient theme."""
-        # The exact original stylesheet that made it beautiful
-        OriginalStyleSheet = """
-        * {
-            background-color: qlineargradient(
-                spread:repeat, x1:1, y1:0, x2:1, y2:1, 
-                stop:0.00480769 rgba(3, 50, 76, 255), 
-                stop:0.293269 rgba(6, 82, 125, 255), 
-                stop:0.514423 rgba(8, 117, 178, 255), 
-                stop:0.745192 rgba(7, 108, 164, 255), 
-                stop:1 rgba(3, 51, 77, 255)
-            );
-            color: #FFFFFF;
-            border: none;
-        }
-
-        QComboBox::down-arrow {
-            image: url(Assets/arrow.png);
-        }
-
-        QComboBox::item:hover, QListView::item:hover {
-            border: 3px solid red;
-        }
-        
-        QToolTip { 
-            color: #ffffff; 
-            border: none; 
-            font-size: 16px; 
-        }
-        
-        QStatusBar {
-            background-color: #780000; 
-            color: white;
-        }
-        """
-        
-        self.setStyleSheet(OriginalStyleSheet)
-        self.Logger.info("Original beautiful blue gradient theme applied")
-    
-    def LoadInitialData(self):
-        """Load initial data."""
+    def ApplyTheme(self) -> None:
+        """Apply the application theme and styling."""
         try:
-            QTimer.singleShot(100, self.DisplayAllBooks)
+            # Set application font
+            Font = QFont("Segoe UI", 9)
+            self.setFont(Font)
+            
+            # Apply modern dark theme
+            self.setStyleSheet("""
+                QMainWindow {
+                    background-color: #2b2b2b;
+                    color: #ffffff;
+                }
+                
+                QMenuBar {
+                    background-color: #3c3c3c;
+                    color: #ffffff;
+                    border: none;
+                    padding: 4px;
+                }
+                
+                QMenuBar::item {
+                    background-color: transparent;
+                    padding: 6px 12px;
+                    border-radius: 4px;
+                }
+                
+                QMenuBar::item:selected {
+                    background-color: #0078d4;
+                }
+                
+                QMenu {
+                    background-color: #3c3c3c;
+                    color: #ffffff;
+                    border: 1px solid #555555;
+                    padding: 4px;
+                }
+                
+                QMenu::item {
+                    padding: 6px 20px;
+                    border-radius: 4px;
+                }
+                
+                QMenu::item:selected {
+                    background-color: #0078d4;
+                }
+                
+                QToolBar {
+                    background-color: #3c3c3c;
+                    border: none;
+                    spacing: 4px;
+                    padding: 4px;
+                }
+                
+                QPushButton {
+                    background-color: #0078d4;
+                    color: #ffffff;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: 500;
+                }
+                
+                QPushButton:hover {
+                    background-color: #106ebe;
+                }
+                
+                QPushButton:pressed {
+                    background-color: #005a9e;
+                }
+                
+                QStatusBar {
+                    background-color: #3c3c3c;
+                    color: #ffffff;
+                    border-top: 1px solid #555555;
+                }
+                
+                QProgressBar {
+                    border: 1px solid #555555;
+                    border-radius: 4px;
+                    text-align: center;
+                    background-color: #2b2b2b;
+                    color: #ffffff;
+                }
+                
+                QProgressBar::chunk {
+                    background-color: #0078d4;
+                    border-radius: 3px;
+                }
+                
+                QSplitter::handle {
+                    background-color: #555555;
+                    width: 2px;
+                }
+                
+                QSplitter::handle:hover {
+                    background-color: #0078d4;
+                }
+            """)
+            
+            self.Logger.debug("Theme applied successfully")
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to apply theme: {Error}")
+    
+    def LoadInitialData(self) -> None:
+        """Load initial data when application starts."""
+        try:
+            self.ShowProgress("Loading library...")
+            
+            # Load all books initially
+            QTimer.singleShot(100, self.LoadAllBooks)
+            
         except Exception as Error:
             self.Logger.error(f"Failed to load initial data: {Error}")
+            self.HideProgress()
+            self.UpdateStatusBar("Failed to load library")
     
-    def DisplayAllBooks(self):
-        """Display all books using the new schema."""
+    def LoadAllBooks(self) -> None:
+        """Load all books and display them."""
         try:
-            # Use new database manager with relational schema
-            BookDicts = self.DatabaseManager.GetBooks()
-            self.BookGrid.DisplayBooks(BookDicts)
-            
-            BookCount = len(BookDicts)
-            self.StatusBar.showMessage(f"Showing all books: {BookCount} books with BLOB thumbnails")
-            self.Logger.info(f"Displayed {BookCount} books with new schema")
-            
-        except Exception as Error:
-            self.Logger.error(f"Failed to display books: {Error}")
-            self.StatusBar.showMessage("Error loading books")
-    
-    def OnSearchRequested(self, SearchTerm):
-        """Handle search request."""
-        try:
-            # Handle different search term formats
-            if hasattr(SearchTerm, 'SearchTerm'):
-                Term = SearchTerm.SearchTerm
-            else:
-                Term = str(SearchTerm).strip()
-            
-            self.Logger.info(f"Search requested: '{Term}'")
-            
-            if not Term:
-                self.DisplayAllBooks()
+            if not self.BookService:
+                self.Logger.error("BookService not available")
                 return
             
-            # Use new database manager search
-            BookDicts = self.DatabaseManager.GetBooks(SearchTerm=Term)
-            self.BookGrid.DisplayBooks(BookDicts)
+            # Get all books
+            self.CurrentBooks = self.BookService.GetAllBooks()
             
-            BookCount = len(BookDicts)
-            self.StatusBar.showMessage(f"Search results for '{Term}': {BookCount} books found")
+            # Update book grid
+            if self.BookGrid:
+                self.BookGrid.SetBooks(self.CurrentBooks)
+            
+            # Update status
+            BookCount = len(self.CurrentBooks)
+            self.UpdateStatusBar(f"Showing all books: {BookCount} books with BLOB thumbnails")
+            self.UpdateDatabaseStats()
+            
+            self.HideProgress()
+            self.Logger.info(f"Loaded {BookCount} books successfully")
             
         except Exception as Error:
-            self.Logger.error(f"Search failed: {Error}")
-            self.StatusBar.showMessage(f"Search error: {Error}")
+            self.Logger.error(f"Failed to load books: {Error}")
+            self.HideProgress()
+            self.UpdateStatusBar("Failed to load books")
+            self.ShowError(f"Failed to load books: {Error}")
     
-    def OnFiltersChanged(self, Category, Subject=None):
-        """Handle category/subject filtering with new schema."""
+    def OnFiltersChanged(self, Criteria: Dict[str, Any]) -> None:
+        """Handle filter changes from filter panel."""
         try:
-            # Handle different parameter formats
-            if hasattr(Category, 'Categories'):
-                # SearchCriteria object
-                Cat = Category.Categories[0] if Category.Categories else ""
-                Sub = Category.Subjects[0] if Category.Subjects else ""
-            else:
-                # String parameters
-                Cat = str(Category) if Category else ""
-                Sub = str(Subject) if Subject else ""
+            self.Logger.debug(f"Filters changed: {Criteria}")
+            self.LastFilterCriteria = Criteria
             
-            self.Logger.info(f"Filters changed: Category='{Cat}', Subject='{Sub}'")
+            self.ShowProgress("Filtering books...")
+            QTimer.singleShot(50, lambda: self.ApplyFilters(Criteria))
             
-            # Handle "All Categories" case
-            if Cat == "All Categories" or not Cat:
-                self.DisplayAllBooks()
+        except Exception as Error:
+            self.Logger.error(f"Failed to handle filter change: {Error}")
+            self.HideProgress()
+    
+    def ApplyFilters(self, Criteria: Dict[str, Any]) -> None:
+        """Apply filters and update book display."""
+        try:
+            if not self.BookService:
                 return
             
-            # Use new database manager filter with JOINs
-            BookDicts = self.DatabaseManager.GetBooks(Category=Cat, Subject=Sub)
-            self.BookGrid.DisplayBooks(BookDicts)
+            # Extract filter criteria
+            Category = Criteria.get('Category', '')
+            Subject = Criteria.get('Subject', '')
+            SearchTerm = Criteria.get('SearchTerm', '')
             
-            BookCount = len(BookDicts)
-            if Cat and Sub and Sub != "All Subjects":
-                self.StatusBar.showMessage(f"Showing books: {Cat} → {Sub} ({BookCount} books)")
-            elif Cat:
-                self.StatusBar.showMessage(f"Showing books: {Cat} ({BookCount} books)")
+            # Get filtered books
+            if SearchTerm:
+                FilteredBooks = self.BookService.SearchBooks(SearchTerm)
+            elif Category or Subject:
+                FilteredBooks = self.BookService.GetBooksByFilters(Category, Subject)
             else:
-                self.StatusBar.showMessage(f"Showing {BookCount} books")
+                FilteredBooks = self.BookService.GetAllBooks()
+            
+            # Update current books
+            self.CurrentBooks = FilteredBooks
+            
+            # Update book grid
+            if self.BookGrid:
+                self.BookGrid.SetBooks(self.CurrentBooks)
+            
+            # Update status
+            self.UpdateFilterStatus(Criteria, len(FilteredBooks))
+            self.HideProgress()
+            
+            self.Logger.debug(f"Applied filters, showing {len(FilteredBooks)} books")
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to apply filters: {Error}")
+            self.HideProgress()
+            self.UpdateStatusBar("Filter operation failed")
+    
+    def OnSearchRequested(self, SearchTerm: str) -> None:
+        """Handle search request from filter panel."""
+        try:
+            if not SearchTerm.strip():
+                self.LoadAllBooks()
+                return
+            
+            self.ShowProgress(f"Searching for '{SearchTerm}'...")
+            Criteria = {'SearchTerm': SearchTerm}
+            QTimer.singleShot(50, lambda: self.ApplyFilters(Criteria))
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to handle search request: {Error}")
+            self.HideProgress()
+    
+    def OnResetRequested(self) -> None:
+        """Handle reset request from filter panel."""
+        try:
+            self.ShowProgress("Resetting filters...")
+            self.LastFilterCriteria = {}
+            QTimer.singleShot(50, self.LoadAllBooks)
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to handle reset request: {Error}")
+            self.HideProgress()
+    
+    def OnBookSelected(self, Book: Dict[str, Any]) -> None:
+        """Handle book selection from book grid."""
+        try:
+            self.Logger.debug(f"Book selected: {Book.get('Title', 'Unknown')}")
+            self.BookSelected.emit(Book)
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to handle book selection: {Error}")
+    
+    def OnBookOpened(self, Book: Dict[str, Any]) -> None:
+        """Handle book opening from book grid."""
+        try:
+            BookTitle = Book.get('Title', 'Unknown')
+            self.Logger.info(f"Opening book: {BookTitle}")
+            
+            if self.BookService:
+                Success = self.BookService.OpenBook(BookTitle)
+                if Success:
+                    self.UpdateStatusBar(f"Opened: {BookTitle}")
+                else:
+                    self.ShowError(f"Failed to open book: {BookTitle}")
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to handle book opening: {Error}")
+            self.ShowError(f"Failed to open book: {Error}")
+    
+    def OnSelectionChanged(self, Count: int) -> None:
+        """Handle selection change in book grid."""
+        try:
+            if Count == 0:
+                self.UpdateStatusBar("No books selected")
+            elif Count == 1:
+                self.UpdateStatusBar("1 book selected")
+            else:
+                self.UpdateStatusBar(f"{Count} books selected")
                 
         except Exception as Error:
-            self.Logger.error(f"Filter change failed: {Error}")
-            self.StatusBar.showMessage(f"Filter error: {Error}")
+            self.Logger.error(f"Failed to handle selection change: {Error}")
     
-    def OnBookClicked(self, BookTitle: str):
-        """Handle book click event."""
+    def RefreshLibrary(self) -> None:
+        """Refresh the entire library display."""
         try:
-            self.Logger.info(f"Book clicked: '{BookTitle}'")
+            self.Logger.info("Refreshing library")
             
-            # Update last opened timestamp
-            self.DatabaseManager.UpdateLastOpened(BookTitle)
+            # Clear caches
+            if self.BookService:
+                self.BookService.ClearCache()
             
-            # Try to use BookService if available
-            if hasattr(self.BookService, 'OpenBook'):
-                self.BookService.OpenBook(BookTitle)
+            # Refresh filter panel
+            if self.FilterPanel:
+                self.FilterPanel.RefreshData()
             
-            # Update status bar
-            self.StatusBar.showMessage(f"Book opened: '{BookTitle}'")
+            # Reload books
+            self.LoadAllBooks()
             
         except Exception as Error:
-            self.Logger.error(f"Failed to open book '{BookTitle}': {Error}")
-            self.StatusBar.showMessage(f"Error opening book: {Error}")
+            self.Logger.error(f"Failed to refresh library: {Error}")
+            self.ShowError(f"Failed to refresh library: {Error}")
     
-    def closeEvent(self, event):
-        """Handle application close event with proper cleanup."""
+    def SetViewMode(self, Mode: str) -> None:
+        """Set the view mode for book display."""
         try:
-            self.Logger.info("Application shutdown initiated")
+            if self.BookGrid:
+                self.BookGrid.SetViewMode(Mode)
+                self.UpdateStatusBar(f"View mode: {Mode}")
+                
+        except Exception as Error:
+            self.Logger.error(f"Failed to set view mode: {Error}")
+    
+    def ShowDatabaseStats(self) -> None:
+        """Show database statistics dialog."""
+        try:
+            if not self.BookService:
+                return
             
-            if self.DatabaseManager and hasattr(self.DatabaseManager, 'Close'):
+            Stats = self.BookService.GetDatabaseStats()
+            Message = f"""Database Statistics:
+            
+Books: {Stats.get('Books', 0)}
+Categories: {Stats.get('Categories', 0)}
+Subjects: {Stats.get('Subjects', 0)}
+            
+Current Display: {len(self.CurrentBooks)} books"""
+            
+            QMessageBox.information(self, "Database Statistics", Message)
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to show database stats: {Error}")
+    
+    def ShowAbout(self) -> None:
+        """Show about dialog."""
+        try:
+            Message = """Anderson's Library - Professional Edition
+Version 2.0
+
+A modern book management application with embedded thumbnails
+and professional modular architecture.
+
+Built with PySide6 and SQLite
+Following Design Standard v1.8"""
+            
+            QMessageBox.about(self, "About Anderson's Library", Message)
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to show about dialog: {Error}")
+    
+    def UpdateFilterStatus(self, Criteria: Dict[str, Any], ResultCount: int) -> None:
+        """Update status bar with filter information."""
+        try:
+            if not Criteria:
+                self.UpdateStatusBar(f"Showing all books: {ResultCount} books")
+                return
+            
+            FilterParts = []
+            
+            if Criteria.get('SearchTerm'):
+                FilterParts.append(f"Search: '{Criteria['SearchTerm']}'")
+            if Criteria.get('Category'):
+                FilterParts.append(f"Category: {Criteria['Category']}")
+            if Criteria.get('Subject'):
+                FilterParts.append(f"Subject: {Criteria['Subject']}")
+            
+            if FilterParts:
+                FilterText = " | ".join(FilterParts)
+                self.UpdateStatusBar(f"Filtered ({FilterText}): {ResultCount} books")
+            else:
+                self.UpdateStatusBar(f"Showing all books: {ResultCount} books")
+                
+        except Exception as Error:
+            self.Logger.error(f"Failed to update filter status: {Error}")
+    
+    def UpdateDatabaseStats(self) -> None:
+        """Update database statistics in status bar."""
+        try:
+            if not self.BookService or not hasattr(self, 'DatabaseStatsLabel'):
+                return
+            
+            Stats = self.BookService.GetDatabaseStats()
+            StatsText = f"Library: {Stats.get('Books', 0)} books, {Stats.get('Categories', 0)} categories"
+            self.DatabaseStatsLabel.setText(StatsText)
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to update database stats: {Error}")
+    
+    def ShowProgress(self, Message: str) -> None:
+        """Show progress indication."""
+        try:
+            if self.ProgressBar and self.StatusLabel:
+                self.StatusLabel.setText(Message)
+                self.ProgressBar.setVisible(True)
+                self.ProgressBar.setRange(0, 0)  # Indeterminate progress
+                self.IsLoading = True
+                
+        except Exception as Error:
+            self.Logger.error(f"Failed to show progress: {Error}")
+    
+    def HideProgress(self) -> None:
+        """Hide progress indication."""
+        try:
+            if self.ProgressBar:
+                self.ProgressBar.setVisible(False)
+                self.IsLoading = False
+                
+        except Exception as Error:
+            self.Logger.error(f"Failed to hide progress: {Error}")
+    
+    def UpdateStatusBar(self, Message: str) -> None:
+        """Update status bar message."""
+        try:
+            if self.StatusLabel and not self.IsLoading:
+                self.StatusLabel.setText(Message)
+                
+        except Exception as Error:
+            self.Logger.error(f"Failed to update status bar: {Error}")
+    
+    def ShowError(self, Message: str) -> None:
+        """Show error message to user."""
+        try:
+            QMessageBox.critical(self, "Error", Message)
+        except Exception as Error:
+            self.Logger.error(f"Failed to show error dialog: {Error}")
+    
+    def ShowCriticalError(self, Message: str) -> None:
+        """Show critical error and exit application."""
+        try:
+            QMessageBox.critical(self, "Critical Error", 
+                               f"{Message}\n\nThe application will now exit.")
+            sys.exit(1)
+        except Exception as Error:
+            self.Logger.critical(f"Critical error in error handling: {Error}")
+            sys.exit(1)
+    
+    def closeEvent(self, Event) -> None:
+        """Handle application close event."""
+        try:
+            self.Logger.info("Application closing")
+            
+            # Close database connection
+            if self.DatabaseManager:
                 self.DatabaseManager.Close()
-                self.Logger.info("Database connection closed")
             
-            event.accept()
-            self.Logger.info("Anderson's Library Closed")
+            Event.accept()
             
         except Exception as Error:
-            self.Logger.error(f"Error during shutdown: {Error}")
-            event.accept()
-
-
-def RunApplication():
-    """Run the Anderson's Library application with new database schema."""
-    App = QApplication(sys.argv)
-    App.setApplicationName("Anderson's Library")
-    App.setApplicationVersion("2.0")
-    App.setOrganizationName("Project Himalaya")
-    App.setOrganizationDomain("BowersWorld.com")
-    
-    try:
-        Window = MainWindow()
-        Window.show()
-        
-        Logger = logging.getLogger("MainWindow")
-        Logger.info("Anderson's Library Started with BLOB thumbnails")
-        
-        return App.exec()
-        
-    except Exception as Error:
-        Logger = logging.getLogger("MainWindow")
-        Logger.critical(f"Failed to start application: {Error}")
-        QMessageBox.critical(None, "Critical Error", 
-                           f"Failed to start Anderson's Library:\n{Error}")
-        return 1
-
+            self.Logger.error(f"Error during application close: {Error}")
+            Event.accept()
 
 if __name__ == "__main__":
     sys.exit(RunApplication())

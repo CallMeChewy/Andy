@@ -2,10 +2,10 @@
 # Path: Source/Interface/FilterPanel.py
 # Standard: AIDEV-PascalCase-1.8
 # Created: 2025-07-05
-# Last Modified: 2025-07-05  07:40PM
+# Last Modified: 2025-07-05  07:55PM
 """
-Description: FilterPanel with Simple Interface Compatibility
-Updated to work with simplified BookService interface (no Database access, plain lists).
+Description: FilterPanel with PySide6 Signal Compatibility
+Fixed import to use PySide6.QtCore.Signal instead of pyqtSignal.
 Implements correct workflow: Category selection → Subject population → Book display.
 """
 
@@ -14,7 +14,7 @@ from typing import Optional, Callable, List
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QComboBox, QLineEdit, QFrame
 )
-from PySide6.QtCore import QTimer, pyqtSignal
+from PySide6.QtCore import QTimer, Signal  # ✅ FIXED: Signal instead of pyqtSignal
 from PySide6.QtGui import QFont
 
 from Source.Core.BookService import BookService
@@ -27,10 +27,10 @@ class FilterPanel(QWidget):
     Uses simple BookService interface without direct database access.
     """
     
-    # Signals for communication with MainWindow
-    FilterChanged = pyqtSignal(SearchCriteria)  # Category/Subject filters
-    SearchRequested = pyqtSignal(SearchCriteria)  # Search queries
-    StatusUpdate = pyqtSignal(str)  # Status messages
+    # ✅ FIXED: Use Signal instead of pyqtSignal for PySide6
+    FilterChanged = Signal(SearchCriteria)  # Category/Subject filters
+    SearchRequested = Signal(SearchCriteria)  # Search queries
+    StatusUpdate = Signal(str)  # Status messages
     
     def __init__(self, BookService: BookService, parent=None):
         """

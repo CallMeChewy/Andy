@@ -80,12 +80,12 @@ def main():
     
     # Import and run the application
     try:
-        # Add Source to Python path
-        source_path = Path(__file__).parent / "Source"
-        sys.path.insert(0, str(source_path))
+        # Add project root to Python path so Source modules can import each other
+        project_root = Path(__file__).parent
+        sys.path.insert(0, str(project_root))
         
         # Import and run main window
-        from Interface.MainWindow import RunApplication
+        from Source.Interface.MainWindow import RunApplication
         
         return RunApplication()
         
