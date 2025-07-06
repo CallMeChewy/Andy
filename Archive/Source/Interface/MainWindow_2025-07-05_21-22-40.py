@@ -2,10 +2,10 @@
 # Path: Source/Interface/MainWindow.py
 # Standard: AIDEV-PascalCase-1.8
 # Created: 2025-07-05
-# Last Modified: 2025-07-05  09:15PM
+# Last Modified: 2025-07-05  08:50PM
 """
-Description: FINAL UI/UX FIXES - Readable Text + Working Category/Subject Filters
-Fixed contrast issues and category/subject filtering functionality.
+Description: COMPATIBILITY FIX - Main Window Working with Existing Interface
+Fixed to work with existing FilterPanel and BookService interface.
 """
 
 import sys
@@ -27,7 +27,7 @@ from Source.Interface.BookGrid import BookGrid
 
 class MainWindow(QMainWindow):
     """
-    FINAL FIX - Main window with readable text and working filters.
+    COMPATIBILITY FIX - Main window that works with existing FilterPanel and BookService.
     """
     
     def __init__(self):
@@ -44,8 +44,8 @@ class MainWindow(QMainWindow):
         self.InitializeComponents()
         self.SetupUI()
         self.ConnectSignals()
-        self.ApplyFixedTheme()  # FIXED: Better contrast
-        self.SetInitialState()  # FIXED: No books on startup
+        self.ApplyHighContrastTheme()  # Better theme
+        self.LoadInitialData()
         
         self.Logger.info("MainWindow initialized successfully")
     
@@ -69,12 +69,10 @@ class MainWindow(QMainWindow):
             sys.exit(1)
     
     def SetupUI(self):
-        """Setup the main user interface for maximum image display."""
+        """Setup the main user interface."""
         self.setWindowTitle("🏔️ Anderson's Library - Professional Edition")
         self.setMinimumSize(1200, 800)
-        
-        # FIXED: Start maximized for maximum image display
-        self.showMaximized()
+        self.resize(1400, 900)
         
         # Create central widget
         CentralWidget = QWidget()
@@ -82,13 +80,13 @@ class MainWindow(QMainWindow):
         
         # Create main layout with splitter for resizable panels
         MainLayout = QHBoxLayout(CentralWidget)
-        MainLayout.setContentsMargins(5, 5, 5, 5)  # Smaller margins for more space
+        MainLayout.setContentsMargins(10, 10, 10, 10)
         
         # Create splitter for resizable panels
         Splitter = QSplitter(Qt.Horizontal)
         MainLayout.addWidget(Splitter)
         
-        # Setup left panel (filters) - narrower for more book space
+        # Setup left panel (filters)
         LeftPanel = self.CreateLeftPanel()
         Splitter.addWidget(LeftPanel)
         
@@ -96,24 +94,24 @@ class MainWindow(QMainWindow):
         RightPanel = self.CreateRightPanel()
         Splitter.addWidget(RightPanel)
         
-        # FIXED: Optimize for maximum book display - smaller left panel
-        Splitter.setSizes([280, 1400])  # Left: 280px, Right: most space
+        # Set splitter proportions (left panel smaller)
+        Splitter.setSizes([300, 1100])  # Left panel: 300px, Right panel: remainder
         Splitter.setCollapsible(0, False)  # Don't allow left panel to collapse
         
         # Setup status bar
         self.SetupStatusBar()
     
     def CreateLeftPanel(self) -> QFrame:
-        """Create the left panel with proper contrast."""
+        """Create the left panel containing filters and search."""
         LeftPanel = QFrame()
         LeftPanel.setObjectName("LeftPanel")
         LeftPanel.setFrameStyle(QFrame.StyledPanel)
-        LeftPanel.setFixedWidth(280)  # FIXED: Narrower for more book space
+        LeftPanel.setFixedWidth(350)  # Fixed width for consistency
         
         # Left panel layout
         LeftLayout = QVBoxLayout(LeftPanel)
-        LeftLayout.setContentsMargins(12, 12, 12, 12)
-        LeftLayout.setSpacing(8)
+        LeftLayout.setContentsMargins(15, 15, 15, 15)
+        LeftLayout.setSpacing(10)
         
         # Add filter panel
         LeftLayout.addWidget(self.FilterPanel)
@@ -124,13 +122,13 @@ class MainWindow(QMainWindow):
         return LeftPanel
     
     def CreateRightPanel(self) -> QFrame:
-        """Create the right panel for maximum book display."""
+        """Create the right panel containing the book grid."""
         RightPanel = QFrame()
         RightPanel.setFrameStyle(QFrame.StyledPanel)
         
-        # Right panel layout with minimal margins
+        # Right panel layout
         RightLayout = QVBoxLayout(RightPanel)
-        RightLayout.setContentsMargins(2, 2, 2, 2)  # Minimal margins
+        RightLayout.setContentsMargins(5, 5, 5, 5)
         
         # Add book grid
         RightLayout.addWidget(self.BookGrid)
@@ -141,81 +139,62 @@ class MainWindow(QMainWindow):
         """Setup the status bar."""
         self.StatusBar = QStatusBar()
         self.setStatusBar(self.StatusBar)
-        self.StatusBar.showMessage("Ready - Select a category to browse books")
+        self.StatusBar.showMessage("Application ready - awaiting user interaction")
     
     def ConnectSignals(self):
-        """FIXED: Connect signals using ALL possible signal names."""
+        """COMPATIBILITY FIX - Connect signals using EXISTING signal names."""
         try:
-            # Try multiple signal names for maximum compatibility
-            SignalConnections = 0
+            # FIXED: Check for correct signal names from existing FilterPanel
+            if hasattr(self.FilterPanel, 'SearchRequested'):
+                self.FilterPanel.SearchRequested.connect(self.OnSearchRequested)
             
-            # Search signals
-            for SearchSignal in ['SearchRequested', 'searchRequested', 'search_requested']:
-                if hasattr(self.FilterPanel, SearchSignal):
-                    getattr(self.FilterPanel, SearchSignal).connect(self.OnSearchRequested)
-                    SignalConnections += 1
-                    break
+            # FIXED: Use correct signal name (FilterChanged not FiltersChanged)
+            if hasattr(self.FilterPanel, 'FilterChanged'):
+                self.FilterPanel.FilterChanged.connect(self.OnFiltersChanged)
             
-            # Filter signals  
-            for FilterSignal in ['FilterChanged', 'FiltersChanged', 'filterChanged', 'filter_changed']:
-                if hasattr(self.FilterPanel, FilterSignal):
-                    getattr(self.FilterPanel, FilterSignal).connect(self.OnFiltersChanged)
-                    SignalConnections += 1
-                    break
+            # FIXED: Check for BookGrid signals
+            if hasattr(self.BookGrid, 'BookClicked'):
+                self.BookGrid.BookClicked.connect(self.OnBookClicked)
             
-            # Book click signals
-            for BookSignal in ['BookClicked', 'bookClicked', 'book_clicked']:
-                if hasattr(self.BookGrid, BookSignal):
-                    getattr(self.BookGrid, BookSignal).connect(self.OnBookClicked)
-                    SignalConnections += 1
-                    break
-            
-            self.Logger.info(f"Connected {SignalConnections} signals successfully")
+            self.Logger.info("Signals connected successfully")
             
         except Exception as Error:
             self.Logger.error(f"Failed to connect signals: {Error}")
     
-    def ApplyFixedTheme(self):
-        """FIXED: Apply theme with MAXIMUM contrast for readability."""
+    def ApplyHighContrastTheme(self):
+        """Apply a high contrast theme that's actually readable."""
         StyleSheet = """
         /* Main Window - Light background */
         QMainWindow {
-            background-color: #f8f9fa;
+            background-color: #f5f5f5;
             color: #2c3e50;
         }
         
-        /* Left Panel - Dark blue with BRIGHT WHITE text */
+        /* Left Panel - Dark blue with WHITE text */
         QFrame#LeftPanel {
             background-color: #2c3e50;
             border: 2px solid #34495e;
             border-radius: 8px;
-            padding: 8px;
+            padding: 10px;
         }
         
-        /* CRITICAL FIX: Force WHITE text on ALL panel elements */
-        QFrame#LeftPanel * {
-            color: #ffffff !important;
-        }
-        
-        /* Panel Labels - BRIGHT WHITE text */
+        /* Panel Labels - WHITE text for maximum contrast */
         QFrame#LeftPanel QLabel {
-            color: #ffffff !important;
+            color: #ffffff;
             font-weight: bold;
-            font-size: 14px !important;
-            padding: 6px 0px;
-            background: transparent;
+            font-size: 13px;
+            padding: 5px 0px;
         }
         
-        /* ComboBox - White background, dark text, larger */
+        /* ComboBox - White background, dark text */
         QComboBox {
-            background-color: #ffffff !important;
+            background-color: #ffffff;
             border: 2px solid #bdc3c7;
             border-radius: 6px;
-            padding: 10px;
-            color: #2c3e50 !important;
-            font-size: 13px !important;
-            min-height: 28px;
-            font-weight: normal;
+            padding: 8px;
+            color: #2c3e50;
+            font-size: 12px;
+            min-height: 25px;
         }
         
         QComboBox:focus {
@@ -227,36 +206,31 @@ class MainWindow(QMainWindow):
             width: 25px;
         }
         
-        /* LineEdit (Search) - White background, dark text, larger */
+        /* LineEdit (Search) - White background, dark text */
         QLineEdit {
-            background-color: #ffffff !important;
+            background-color: #ffffff;
             border: 2px solid #bdc3c7;
             border-radius: 6px;
-            padding: 10px;
-            color: #2c3e50 !important;
-            font-size: 13px !important;
-            min-height: 28px;
+            padding: 8px;
+            color: #2c3e50;
+            font-size: 12px;
+            min-height: 25px;
         }
         
         QLineEdit:focus {
             border-color: #3498db;
         }
         
-        QLineEdit::placeholder {
-            color: #7f8c8d !important;
-        }
-        
-        /* Status Bar - Light background, larger text */
+        /* Status Bar - Light background */
         QStatusBar {
             background-color: #ecf0f1;
             border-top: 1px solid #bdc3c7;
             color: #2c3e50;
-            font-size: 13px;
-            padding: 8px;
-            font-weight: bold;
+            font-size: 12px;
+            padding: 5px;
         }
         
-        /* Right Panel - Clean white */
+        /* Right Panel */
         QFrame {
             background-color: #ffffff;
             border: 1px solid #e1e8ed;
@@ -264,36 +238,100 @@ class MainWindow(QMainWindow):
         """
         
         self.setStyleSheet(StyleSheet)
-        self.Logger.info("FIXED high contrast theme applied")
+        self.Logger.info("High contrast theme applied")
     
-    def SetInitialState(self):
-        """FIXED: Show empty state on startup, not all books."""
+    def LoadInitialData(self):
+        """Load initial data and display all books."""
         try:
-            # Show empty message instead of all books
-            self.BookGrid.DisplayBooks([])  # Empty list
-            self.StatusBar.showMessage("Ready - Select a category to browse books")
-            self.Logger.info("Application ready - empty state displayed")
+            QTimer.singleShot(100, self.DisplayAllBooks)
         except Exception as Error:
-            self.Logger.error(f"Failed to set initial state: {Error}")
+            self.Logger.error(f"Failed to load initial data: {Error}")
+    
+    def DisplayAllBooks(self):
+        """COMPATIBILITY FIX - Display all books using existing interface."""
+        try:
+            # FIXED: Use existing BookService method
+            if hasattr(self.BookService, 'GetAllBooks'):
+                Books = self.BookService.GetAllBooks()
+            elif hasattr(self.BookService, 'SearchBooks'):
+                # If no GetAllBooks, try empty search
+                from Source.Data.DatabaseModels import SearchCriteria
+                EmptyCriteria = SearchCriteria()
+                SearchResult = self.BookService.SearchBooks(EmptyCriteria)
+                Books = SearchResult.Books if hasattr(SearchResult, 'Books') else SearchResult
+            else:
+                # Fallback - use database directly
+                BookRows = self.DatabaseManager.GetBooks()
+                Books = self.ConvertRowsToBooks(BookRows)
+            
+            # FIXED: Convert Book objects to dictionaries for new BookGrid
+            BookDicts = self.ConvertBooksToDict(Books)
+            self.BookGrid.DisplayBooks(BookDicts)
+            
+            BookCount = len(Books)
+            self.StatusBar.showMessage(f"Showing all books: {BookCount} books found")
+            self.Logger.info(f"Displayed {BookCount} books")
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to display books: {Error}")
+            self.StatusBar.showMessage("Error loading books")
+    
+    def ConvertBooksToDict(self, Books):
+        """Convert Book objects to dictionaries for new BookGrid interface."""
+        BookDicts = []
+        for Book in Books:
+            if hasattr(Book, '__dict__'):
+                # Book is an object - convert to dict
+                BookDict = {
+                    'Title': getattr(Book, 'Title', getattr(Book, 'title', 'Unknown')),
+                    'Author': getattr(Book, 'Author', getattr(Book, 'author', 'Unknown')),
+                    'Category': getattr(Book, 'Category', getattr(Book, 'category', 'General')),
+                    'Subject': getattr(Book, 'Subject', getattr(Book, 'subject', 'General')),
+                    'FilePath': getattr(Book, 'FilePath', getattr(Book, 'filepath', '')),
+                    'ThumbnailPath': getattr(Book, 'ThumbnailPath', getattr(Book, 'thumbnailpath', ''))
+                }
+            elif isinstance(Book, dict):
+                # Already a dict
+                BookDict = Book
+            else:
+                # Unknown format - create basic dict
+                BookDict = {'Title': str(Book), 'Author': 'Unknown', 'Category': 'General'}
+            
+            BookDicts.append(BookDict)
+        
+        return BookDicts
+    
+    def ConvertRowsToBooks(self, Rows):
+        """Convert database rows to Book dictionaries."""
+        Books = []
+        for Row in Rows:
+            if hasattr(Row, 'keys'):
+                # Row is dict-like
+                BookDict = dict(Row)
+            else:
+                # Row is tuple - create basic dict
+                BookDict = {
+                    'Title': Row[0] if len(Row) > 0 else 'Unknown',
+                    'Author': Row[1] if len(Row) > 1 else 'Unknown',
+                    'Category': Row[2] if len(Row) > 2 else 'General'
+                }
+            Books.append(BookDict)
+        return Books
     
     def OnSearchRequested(self, SearchTerm):
-        """FIXED: Handle search with better error handling."""
+        """Handle search request - COMPATIBILITY FIX."""
         try:
+            self.Logger.info(f"Search requested: '{SearchTerm}'")
+            
             # Handle different search term formats
             if hasattr(SearchTerm, 'SearchTerm'):
+                # SearchCriteria object
                 Term = SearchTerm.SearchTerm
             else:
-                Term = str(SearchTerm).strip()
+                # String
+                Term = str(SearchTerm)
             
-            self.Logger.info(f"Search requested: '{Term}'")
-            
-            if not Term:
-                # Empty search - show empty state
-                self.BookGrid.DisplayBooks([])
-                self.StatusBar.showMessage("Ready - Enter search term or select category")
-                return
-            
-            # Use database manager search directly for reliability
+            # Use existing database manager search
             BookRows = self.DatabaseManager.GetBooks(SearchTerm=Term)
             BookDicts = self.ConvertRowsToBooks(BookRows)
             self.BookGrid.DisplayBooks(BookDicts)
@@ -304,10 +342,9 @@ class MainWindow(QMainWindow):
         except Exception as Error:
             self.Logger.error(f"Search failed: {Error}")
             self.StatusBar.showMessage(f"Search error: {Error}")
-            self.BookGrid.DisplayBooks([])  # Show empty on error
     
     def OnFiltersChanged(self, Category, Subject=None):
-        """FIXED: Handle category/subject filtering with debugging."""
+        """Handle filter changes - COMPATIBILITY FIX."""
         try:
             # Handle different parameter formats
             if hasattr(Category, 'Categories'):
@@ -321,56 +358,22 @@ class MainWindow(QMainWindow):
             
             self.Logger.info(f"Filters changed: Category='{Cat}', Subject='{Sub}'")
             
-            # Handle "All Categories" case
-            if Cat == "All Categories" or not Cat:
-                # Show empty state for "All Categories"
-                self.BookGrid.DisplayBooks([])
-                self.StatusBar.showMessage("Select a specific category to view books")
-                return
-            
-            # Use database manager filter directly
+            # Use existing database manager filter
             BookRows = self.DatabaseManager.GetBooks(Category=Cat, Subject=Sub)
             BookDicts = self.ConvertRowsToBooks(BookRows)
-            
-            self.Logger.info(f"Database returned {len(BookRows)} books for Category='{Cat}', Subject='{Sub}'")
-            
             self.BookGrid.DisplayBooks(BookDicts)
             
             BookCount = len(BookDicts)
-            if Cat and Sub and Sub != "All Subjects":
-                self.StatusBar.showMessage(f"Showing books: {Cat} → {Sub} ({BookCount} books)")
+            if Cat and Sub:
+                self.StatusBar.showMessage(f"Showing books: {Cat} → {Sub}")
             elif Cat:
-                self.StatusBar.showMessage(f"Showing books: {Cat} ({BookCount} books)")
+                self.StatusBar.showMessage(f"Showing books: {Cat}")
             else:
-                self.StatusBar.showMessage(f"Showing {BookCount} books")
+                self.StatusBar.showMessage(f"Showing all books: {BookCount} books found")
                 
         except Exception as Error:
             self.Logger.error(f"Filter change failed: {Error}")
             self.StatusBar.showMessage(f"Filter error: {Error}")
-            self.BookGrid.DisplayBooks([])  # Show empty on error
-    
-    def ConvertRowsToBooks(self, Rows):
-        """Convert database rows to Book dictionaries."""
-        Books = []
-        for Row in Rows:
-            try:
-                if hasattr(Row, 'keys'):
-                    # Row is dict-like (sqlite3.Row)
-                    BookDict = dict(Row)
-                else:
-                    # Row is tuple - create basic dict
-                    BookDict = {
-                        'Title': Row[0] if len(Row) > 0 else 'Unknown',
-                        'Author': Row[1] if len(Row) > 1 else 'Unknown',
-                        'Category': Row[2] if len(Row) > 2 else 'General',
-                        'Subject': Row[3] if len(Row) > 3 else 'General'
-                    }
-                Books.append(BookDict)
-            except Exception as Error:
-                self.Logger.warning(f"Failed to convert row to book: {Error}")
-                continue
-        
-        return Books
     
     def OnBookClicked(self, BookTitle: str):
         """Handle book click event."""
@@ -396,6 +399,7 @@ class MainWindow(QMainWindow):
         try:
             self.Logger.info("Application shutdown initiated")
             
+            # FIXED: Use correct method name
             if self.DatabaseManager and hasattr(self.DatabaseManager, 'Close'):
                 self.DatabaseManager.Close()
                 self.Logger.info("Database connection closed")

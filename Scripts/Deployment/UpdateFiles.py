@@ -13,6 +13,7 @@ Fixed: Now ignores base directory from header paths and uses relative paths from
 Fixed: Regex now handles both comment-style (# Path:) and docstring-style (Path:) headers.
 Fixed: Better handling of absolute paths with leading slashes.
 Fixed: Smarter base directory stripping - only strips known base directories, preserves nested paths.
+Updated: .md files with Path: headers now go to specified location instead of Docs folder.
 """
 
 import os
@@ -226,6 +227,7 @@ def ProcessUpdates() -> None:
     """
     Processes all files in Updates folder with full Himalaya + PascalCase enforcement.
     Now correctly handles relative paths by stripping base directories from headers.
+    Updated: .md files with Path: headers go to specified location instead of Docs folder.
     """
     Today = datetime.now().strftime(DATE_FMT)
     StatusEntries = []
@@ -246,8 +248,24 @@ def ProcessUpdates() -> None:
         Status = {'File': FileName, 'Result': '', 'Detail': ''}
         
         try:
-            # .md/.txt: move to Docs/YYYY-MM-DD/ (original name for doc provenance)
-            if FileExt in ['.md', '.txt']:
+            # Check if it's a .md file
+            if FileExt == '.md':
+                if HeaderPath:
+                    # .md file with Path: header - use specified location
+                    DestPath = HeaderPath
+                    MoveOrCopyFile(SourcePath, DestPath)
+                    Status['Result'] = 'Moved by header path (.md with Path: header)'
+                    Status['Detail'] = DestPath
+                else:
+                    # .md file without Path: header - move to Docs folder
+                    DocsDayDir = os.path.join(DOCS_BASE, Today)
+                    DestPath = os.path.join(DocsDayDir, FileName)
+                    MoveOrCopyFile(SourcePath, DestPath)
+                    Status['Result'] = 'Moved to Docs (no Path: header)'
+                    Status['Detail'] = DestPath
+                    
+            # .txt files: always move to Docs/YYYY-MM-DD/ (original name for doc provenance)
+            elif FileExt == '.txt':
                 DocsDayDir = os.path.join(DOCS_BASE, Today)
                 DestPath = os.path.join(DocsDayDir, FileName)
                 MoveOrCopyFile(SourcePath, DestPath)
@@ -255,7 +273,7 @@ def ProcessUpdates() -> None:
                 Status['Detail'] = DestPath
                 
             elif HeaderPath:
-                # Use the relative path (base directory already stripped)
+                # Other file types with header path
                 DestPath = HeaderPath
                 MoveOrCopyFile(SourcePath, DestPath)
                 Status['Result'] = 'Moved by header path (base directory stripped, PascalCase applied)'
@@ -312,5 +330,6 @@ def ProcessUpdates() -> None:
 if __name__ == "__main__":
     print("[CliveJob] Himalaya file processor starting...")
     print("[CliveJob] Fixed version - now strips base directories from header paths")
+    print("[CliveJob] Updated: .md files with Path: headers go to specified location")
     ProcessUpdates()
     print("[CliveJob] All done. Review status report for details.")

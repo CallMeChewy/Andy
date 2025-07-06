@@ -2,10 +2,10 @@
 # Path: Source/Interface/BookGrid.py
 # Standard: AIDEV-PascalCase-1.8
 # Created: 2025-07-05
-# Last Modified: 2025-07-05  08:50PM
+# Last Modified: 2025-07-05  08:30PM
 """
-Description: COMPATIBILITY FIX - Book Grid Without CSS Transform Issues
-Fixed to work with existing data and without unsupported CSS properties.
+Description: Enhanced Book Grid Interface with Image Display
+Displays books in a grid layout with thumbnails and improved visual design.
 """
 
 import logging
@@ -20,9 +20,13 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QSize, QTimer
 from PySide6.QtGui import QPixmap, QFont, QPainter, QPen, QBrush
 
+from Source.Utils.ColorTheme import ColorTheme
+
 
 class BookCard(QFrame):
-    """Individual book card widget with thumbnail and title."""
+    """
+    Individual book card widget with thumbnail and title.
+    """
     BookClicked = Signal(str)  # Emits book title when clicked
     
     def __init__(self, BookData: Dict[str, Any], parent=None):
@@ -35,23 +39,9 @@ class BookCard(QFrame):
     def SetupUI(self):
         """Setup the card UI layout."""
         self.setObjectName("BookCard")
+        self.setProperty("class", "BookCard")
         self.setFixedSize(200, 280)  # Standard card size
         self.setCursor(Qt.PointingHandCursor)
-        
-        # FIXED: Removed transform CSS property, use simple styling
-        self.setStyleSheet("""
-            QFrame#BookCard {
-                background-color: white;
-                border: 1px solid #ddd;
-                border-radius: 8px;
-                padding: 8px;
-                margin: 5px;
-            }
-            QFrame#BookCard:hover {
-                background-color: #f0f8ff;
-                border-color: #3498db;
-            }
-        """)
         
         # Main layout
         Layout = QVBoxLayout(self)
@@ -78,7 +68,7 @@ class BookCard(QFrame):
         self.TitleLabel.setMaximumHeight(45)
         
         # Set title with truncation
-        Title = self.BookData.get('Title', self.BookData.get('title', 'Unknown Title'))
+        Title = self.BookData.get('Title', 'Unknown Title')
         if len(Title) > 40:
             Title = Title[:37] + "..."
         self.TitleLabel.setText(Title)
@@ -88,7 +78,6 @@ class BookCard(QFrame):
         TitleFont.setPointSize(9)
         TitleFont.setBold(True)
         self.TitleLabel.setFont(TitleFont)
-        self.TitleLabel.setStyleSheet("color: #2c3e50; background: transparent;")
         
         Layout.addWidget(self.TitleLabel)
         
@@ -119,13 +108,17 @@ class BookCard(QFrame):
             self.CreatePlaceholder()
     
     def FindThumbnailPath(self) -> Optional[str]:
-        """Find the thumbnail path for this book."""
-        # COMPATIBILITY FIX - Handle different title field names
-        Title = self.BookData.get('Title', self.BookData.get('title', ''))
+        """
+        Find the thumbnail path for this book.
+        
+        Returns:
+            Path to thumbnail file or None if not found
+        """
+        Title = self.BookData.get('Title', '')
         if not Title:
             return None
         
-        # Check thumbnail directories (starting with correct location)
+        # Common thumbnail directories to check (starting with actual location)
         ThumbnailDirs = [
             'Data/Thumbs',           # Actual thumbnail location
             'Assets/Thumbnails',
@@ -197,8 +190,7 @@ class BookCard(QFrame):
     def mousePressEvent(self, event):
         """Handle mouse click on book card."""
         if event.button() == Qt.LeftButton:
-            # COMPATIBILITY FIX - Handle different title field names
-            Title = self.BookData.get('Title', self.BookData.get('title', ''))
+            Title = self.BookData.get('Title', '')
             if Title:
                 self.BookClicked.emit(Title)
                 self.Logger.info(f"Book card clicked: {Title}")
@@ -206,13 +198,16 @@ class BookCard(QFrame):
 
 
 class BookGrid(QWidget):
-    """COMPATIBILITY FIX - Grid layout without CSS transform issues."""
+    """
+    Enhanced grid layout for displaying book cards with thumbnails.
+    """
     BookClicked = Signal(str)  # Emits book title when clicked
     
     def __init__(self, parent=None):
         super().__init__(parent)
         self.Logger = logging.getLogger(self.__class__.__name__)
         self.Books = []
+        self.ColorTheme = ColorTheme()
         self.MaxColumns = 5  # Maximum columns in grid
         self.SetupUI()
         self.Logger.info("BookGrid initialized successfully")
@@ -229,27 +224,6 @@ class BookGrid(QWidget):
         self.ScrollArea.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.ScrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         
-        # FIXED: Removed transform CSS, use simple styling
-        self.ScrollArea.setStyleSheet("""
-            QScrollArea {
-                border: none;
-                background-color: #ffffff;
-            }
-            QScrollBar:vertical {
-                background-color: #e1e8ed;
-                width: 12px;
-                border-radius: 6px;
-            }
-            QScrollBar::handle:vertical {
-                background-color: #3498db;
-                border-radius: 6px;
-                min-height: 20px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background-color: #2980b9;
-            }
-        """)
-        
         # Grid container
         self.GridContainer = QWidget()
         self.GridLayout = QGridLayout(self.GridContainer)
@@ -258,9 +232,22 @@ class BookGrid(QWidget):
         
         self.ScrollArea.setWidget(self.GridContainer)
         self.MainLayout.addWidget(self.ScrollArea)
+        
+        # Apply theme
+        self.ApplyTheme()
+    
+    def ApplyTheme(self):
+        """Apply the color theme to the grid."""
+        StyleSheet = self.ColorTheme.GetStyleSheet("Professional")
+        self.setStyleSheet(StyleSheet)
     
     def DisplayBooks(self, Books: List[Dict[str, Any]]):
-        """Display the list of books in the grid."""
+        """
+        Display the list of books in the grid.
+        
+        Args:
+            Books: List of book dictionaries to display
+        """
         try:
             self.ClearGrid()
             self.Books = Books
@@ -299,13 +286,26 @@ class BookGrid(QWidget):
             self.Logger.error(f"Failed to display books: {Error}")
     
     def CreateBookCard(self, BookData: Dict[str, Any]) -> BookCard:
-        """Create a book card widget."""
+        """
+        Create a book card widget.
+        
+        Args:
+            BookData: Dictionary containing book information
+            
+        Returns:
+            BookCard widget
+        """
         Card = BookCard(BookData, self)
         Card.BookClicked.connect(self.BookClicked.emit)
         return Card
     
     def CreatePlaceholderCard(self) -> QFrame:
-        """Create an invisible placeholder card to maintain grid alignment."""
+        """
+        Create an invisible placeholder card to maintain grid alignment.
+        
+        Returns:
+            Invisible placeholder frame
+        """
         Placeholder = QFrame()
         Placeholder.setFixedSize(200, 280)
         Placeholder.setStyleSheet("background: transparent; border: none;")
