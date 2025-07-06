@@ -1,11 +1,12 @@
 # File: BookGrid.py
 # Path: Source/Interface/BookGrid.py
 # Standard: AIDEV-PascalCase-1.8
-# Created: 2025-07-05
-# Last Modified: 2025-07-05  08:50PM
+# Created: 2025-07-06
+# Last Modified: 2025-07-06  08:55AM
 """
-Description: COMPATIBILITY FIX - Book Grid Without CSS Transform Issues
-Fixed to work with existing data and without unsupported CSS properties.
+Description: BLOB THUMBNAILS - Book Grid with Database BLOB Images + Fixed Sidebar
+Updated to load thumbnails from database BLOBs instead of files.
+Perfect for web/mobile deployment! Also fixes sidebar text colors.
 """
 
 import logging
@@ -17,12 +18,12 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QScrollArea, 
     QFrame, QLabel, QPushButton, QSizePolicy
 )
-from PySide6.QtCore import Qt, Signal, QSize, QTimer
+from PySide6.QtCore import Qt, Signal, QSize, QTimer, QByteArray
 from PySide6.QtGui import QPixmap, QFont, QPainter, QPen, QBrush
 
 
 class BookCard(QFrame):
-    """Individual book card widget with thumbnail and title."""
+    """Individual book card widget with BLOB thumbnail support."""
     BookClicked = Signal(str)  # Emits book title when clicked
     
     def __init__(self, BookData: Dict[str, Any], parent=None):
@@ -30,7 +31,7 @@ class BookCard(QFrame):
         self.BookData = BookData
         self.Logger = logging.getLogger(self.__class__.__name__)
         self.SetupUI()
-        self.LoadThumbnail()
+        self.LoadThumbnailFromBlob()  # NEW: Load from BLOB instead of file
     
     def SetupUI(self):
         """Setup the card UI layout."""
@@ -38,18 +39,18 @@ class BookCard(QFrame):
         self.setFixedSize(200, 280)  # Standard card size
         self.setCursor(Qt.PointingHandCursor)
         
-        # FIXED: Removed transform CSS property, use simple styling
+        # Card styling that works with blue gradient background
         self.setStyleSheet("""
             QFrame#BookCard {
-                background-color: white;
-                border: 1px solid #ddd;
+                background-color: rgba(255, 255, 255, 220);
+                border: 2px solid rgba(255, 255, 255, 100);
                 border-radius: 8px;
                 padding: 8px;
                 margin: 5px;
             }
             QFrame#BookCard:hover {
-                background-color: #f0f8ff;
-                border-color: #3498db;
+                background-color: rgba(255, 255, 255, 240);
+                border-color: rgba(255, 255, 255, 200);
             }
         """)
         
@@ -78,30 +79,32 @@ class BookCard(QFrame):
         self.TitleLabel.setMaximumHeight(45)
         
         # Set title with truncation
-        Title = self.BookData.get('Title', self.BookData.get('title', 'Unknown Title'))
+        Title = self.BookData.get('Title', 'Unknown Title')
         if len(Title) > 40:
             Title = Title[:37] + "..."
         self.TitleLabel.setText(Title)
         
-        # Title font
+        # Black text for title on card background
         TitleFont = QFont()
         TitleFont.setPointSize(9)
         TitleFont.setBold(True)
         self.TitleLabel.setFont(TitleFont)
-        self.TitleLabel.setStyleSheet("color: #2c3e50; background: transparent;")
+        self.TitleLabel.setStyleSheet("color: #000000; background: transparent;")
         
         Layout.addWidget(self.TitleLabel)
         
-    def LoadThumbnail(self):
-        """Load book thumbnail image."""
+    def LoadThumbnailFromBlob(self):
+        """NEW: Load book thumbnail from database BLOB instead of file."""
         try:
-            # Try to find thumbnail
-            ThumbnailPath = self.FindThumbnailPath()
+            # Get BLOB data from book data
+            ThumbnailData = self.BookData.get('ThumbnailData')
             
-            if ThumbnailPath and os.path.exists(ThumbnailPath):
-                # Load actual thumbnail
-                Pixmap = QPixmap(ThumbnailPath)
-                if not Pixmap.isNull():
+            if ThumbnailData:
+                # Convert BLOB to QPixmap
+                ByteArray = QByteArray(ThumbnailData)
+                Pixmap = QPixmap()
+                
+                if Pixmap.loadFromData(ByteArray):
                     # Scale to fit while maintaining aspect ratio
                     ScaledPixmap = Pixmap.scaled(
                         180, 220, 
@@ -109,48 +112,17 @@ class BookCard(QFrame):
                         Qt.SmoothTransformation
                     )
                     self.ThumbnailLabel.setPixmap(ScaledPixmap)
+                    self.Logger.debug(f"Loaded BLOB thumbnail for: {self.BookData.get('Title', 'Unknown')}")
                     return
+                else:
+                    self.Logger.warning(f"Failed to create pixmap from BLOB for: {self.BookData.get('Title', 'Unknown')}")
             
-            # If no thumbnail found, create a placeholder
+            # If no BLOB data or failed to load, create placeholder
             self.CreatePlaceholder()
             
         except Exception as Error:
-            self.Logger.warning(f"Failed to load thumbnail for {self.BookData.get('Title', 'Unknown')}: {Error}")
+            self.Logger.warning(f"Failed to load BLOB thumbnail for {self.BookData.get('Title', 'Unknown')}: {Error}")
             self.CreatePlaceholder()
-    
-    def FindThumbnailPath(self) -> Optional[str]:
-        """Find the thumbnail path for this book."""
-        # COMPATIBILITY FIX - Handle different title field names
-        Title = self.BookData.get('Title', self.BookData.get('title', ''))
-        if not Title:
-            return None
-        
-        # Check thumbnail directories (starting with correct location)
-        ThumbnailDirs = [
-            'Data/Thumbs',           # Actual thumbnail location
-            'Assets/Thumbnails',
-            'Assets/Images', 
-            'Thumbnails',
-            'Images'
-        ]
-        
-        # Common thumbnail extensions
-        Extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp']
-        
-        for ThumbnailDir in ThumbnailDirs:
-            if os.path.exists(ThumbnailDir):
-                for Extension in Extensions:
-                    # Try exact title match
-                    ThumbnailPath = os.path.join(ThumbnailDir, f"{Title}{Extension}")
-                    if os.path.exists(ThumbnailPath):
-                        return ThumbnailPath
-                    
-                    # Try lowercase
-                    ThumbnailPath = os.path.join(ThumbnailDir, f"{Title.lower()}{Extension}")
-                    if os.path.exists(ThumbnailPath):
-                        return ThumbnailPath
-        
-        return None
     
     def CreatePlaceholder(self):
         """Create a placeholder image for books without thumbnails."""
@@ -197,8 +169,7 @@ class BookCard(QFrame):
     def mousePressEvent(self, event):
         """Handle mouse click on book card."""
         if event.button() == Qt.LeftButton:
-            # COMPATIBILITY FIX - Handle different title field names
-            Title = self.BookData.get('Title', self.BookData.get('title', ''))
+            Title = self.BookData.get('Title', '')
             if Title:
                 self.BookClicked.emit(Title)
                 self.Logger.info(f"Book card clicked: {Title}")
@@ -206,7 +177,7 @@ class BookCard(QFrame):
 
 
 class BookGrid(QWidget):
-    """COMPATIBILITY FIX - Grid layout without CSS transform issues."""
+    """BLOB THUMBNAILS - Book Grid with database BLOB support and fixed sidebar text."""
     BookClicked = Signal(str)  # Emits book title when clicked
     
     def __init__(self, parent=None):
@@ -215,7 +186,8 @@ class BookGrid(QWidget):
         self.Books = []
         self.MaxColumns = 5  # Maximum columns in grid
         self.SetupUI()
-        self.Logger.info("BookGrid initialized successfully")
+        self.ApplySidebarTextFix()  # NEW: Fix sidebar dropdown text colors
+        self.Logger.info("BookGrid initialized with BLOB thumbnail support")
     
     def SetupUI(self):
         """Setup the grid UI components."""
@@ -229,29 +201,32 @@ class BookGrid(QWidget):
         self.ScrollArea.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.ScrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         
-        # FIXED: Removed transform CSS, use simple styling
+        # Transparent scroll area to show gradient background
         self.ScrollArea.setStyleSheet("""
             QScrollArea {
                 border: none;
-                background-color: #ffffff;
+                background-color: transparent;
             }
             QScrollBar:vertical {
-                background-color: #e1e8ed;
+                background-color: rgba(255, 255, 255, 100);
                 width: 12px;
                 border-radius: 6px;
             }
             QScrollBar::handle:vertical {
-                background-color: #3498db;
+                background-color: rgba(255, 255, 255, 200);
                 border-radius: 6px;
                 min-height: 20px;
             }
             QScrollBar::handle:vertical:hover {
-                background-color: #2980b9;
+                background-color: rgba(255, 255, 255, 255);
             }
         """)
         
         # Grid container
         self.GridContainer = QWidget()
+        # Transparent container to show gradient
+        self.GridContainer.setStyleSheet("background-color: transparent;")
+        
         self.GridLayout = QGridLayout(self.GridContainer)
         self.GridLayout.setSpacing(10)
         self.GridLayout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
@@ -259,8 +234,60 @@ class BookGrid(QWidget):
         self.ScrollArea.setWidget(self.GridContainer)
         self.MainLayout.addWidget(self.ScrollArea)
     
+    def ApplySidebarTextFix(self):
+        """NEW: Fix sidebar dropdown text colors - black text on light backgrounds."""
+        # Apply the fix globally to all QComboBox elements
+        SidebarTextFix = """
+            /* FIXED: Sidebar dropdown text colors */
+            QComboBox {
+                color: #000000 !important;  /* Force black text */
+                background-color: rgba(255, 255, 255, 240) !important;
+            }
+            
+            QComboBox QAbstractItemView {
+                color: #000000 !important;  /* Black text in dropdown list */
+                background-color: #ffffff !important;
+                selection-background-color: #3498db;
+                selection-color: #ffffff;
+            }
+            
+            QComboBox::item {
+                color: #000000 !important;  /* Black text for each item */
+                background-color: transparent;
+            }
+            
+            QComboBox::item:hover {
+                background-color: #e3f2fd;
+                color: #000000 !important;
+            }
+            
+            QComboBox::item:selected {
+                background-color: #3498db;
+                color: #ffffff !important;
+            }
+            
+            QLineEdit {
+                color: #000000 !important;  /* Black text in search box */
+                background-color: rgba(255, 255, 255, 240) !important;
+            }
+        """
+        
+        # Apply to parent widget to affect all children
+        if self.parent():
+            CurrentStyleSheet = self.parent().styleSheet()
+            self.parent().setStyleSheet(CurrentStyleSheet + SidebarTextFix)
+        else:
+            # Apply to application if no parent
+            from PySide6.QtWidgets import QApplication
+            App = QApplication.instance()
+            if App:
+                CurrentStyleSheet = App.styleSheet()
+                App.setStyleSheet(CurrentStyleSheet + SidebarTextFix)
+        
+        self.Logger.info("Applied sidebar text color fixes")
+    
     def DisplayBooks(self, Books: List[Dict[str, Any]]):
-        """Display the list of books in the grid."""
+        """Display the list of books with BLOB thumbnails."""
         try:
             self.ClearGrid()
             self.Books = Books
@@ -293,13 +320,13 @@ class BookGrid(QWidget):
                     Col = LastRowBooks + i
                     self.GridLayout.addWidget(PlaceholderCard, Row, Col)
             
-            self.Logger.info(f"Displayed {len(Books)} books in {NumColumns} columns")
+            self.Logger.info(f"Displayed {len(Books)} books with BLOB thumbnails in {NumColumns} columns")
             
         except Exception as Error:
             self.Logger.error(f"Failed to display books: {Error}")
     
     def CreateBookCard(self, BookData: Dict[str, Any]) -> BookCard:
-        """Create a book card widget."""
+        """Create a book card widget with BLOB thumbnail support."""
         Card = BookCard(BookData, self)
         Card.BookClicked.connect(self.BookClicked.emit)
         return Card
@@ -319,17 +346,24 @@ class BookGrid(QWidget):
                 Child.widget().deleteLater()
     
     def ShowEmptyMessage(self):
-        """Show message when no books are found."""
+        """Show message with BLACK text on light background."""
         EmptyLabel = QLabel("No books found matching your criteria.")
         EmptyLabel.setAlignment(Qt.AlignCenter)
+        
+        # Black text on semi-transparent light background for readability
         EmptyLabel.setStyleSheet("""
             QLabel {
-                color: #666;
-                font-size: 14px;
-                padding: 50px;
+                color: #000000;
+                background-color: rgba(255, 255, 255, 180);
+                font-size: 16px;
+                font-weight: bold;
+                padding: 20px;
+                border-radius: 8px;
+                border: 2px solid rgba(255, 255, 255, 100);
             }
         """)
-        self.GridLayout.addWidget(EmptyLabel, 0, 0)
+        
+        self.GridLayout.addWidget(EmptyLabel, 0, 0, 1, 3)  # Span 3 columns
     
     def resizeEvent(self, event):
         """Handle window resize to adjust grid columns."""

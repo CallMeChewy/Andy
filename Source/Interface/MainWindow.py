@@ -1,11 +1,11 @@
 # File: MainWindow.py
 # Path: Source/Interface/MainWindow.py
 # Standard: AIDEV-PascalCase-1.8
-# Created: 2025-07-05
-# Last Modified: 2025-07-05  09:15PM
+# Created: 2025-07-06
+# Last Modified: 2025-07-06  08:55AM
 """
-Description: FINAL UI/UX FIXES - Readable Text + Working Category/Subject Filters
-Fixed contrast issues and category/subject filtering functionality.
+Description: UPDATED DATABASE PATH - Anderson's Library Main Window
+Updated to use the new database location with BLOB thumbnails and relational schema.
 """
 
 import sys
@@ -27,7 +27,7 @@ from Source.Interface.BookGrid import BookGrid
 
 class MainWindow(QMainWindow):
     """
-    FINAL FIX - Main window with readable text and working filters.
+    UPDATED - Anderson's Library with new database path and BLOB thumbnail support.
     """
     
     def __init__(self):
@@ -44,21 +44,17 @@ class MainWindow(QMainWindow):
         self.InitializeComponents()
         self.SetupUI()
         self.ConnectSignals()
-        self.ApplyFixedTheme()  # FIXED: Better contrast
-        self.SetInitialState()  # FIXED: No books on startup
+        self.ApplyOriginalBeautifulTheme()
+        self.LoadInitialData()
         
-        self.Logger.info("MainWindow initialized successfully")
+        self.Logger.info("MainWindow initialized with new database schema")
     
     def InitializeComponents(self):
-        """Initialize core application components."""
+        """Initialize core application components with new database path."""
         try:
-            # Initialize database manager
-            self.DatabaseManager = DatabaseManager()
-            
-            # Initialize book service
+            # NEW: Use the updated database path with BLOB thumbnails
+            self.DatabaseManager = DatabaseManager("Data/Databases/MyLibrary.db")
             self.BookService = BookService(self.DatabaseManager)
-            
-            # Initialize UI components
             self.FilterPanel = FilterPanel(self.BookService)
             self.BookGrid = BookGrid()
             
@@ -69,26 +65,26 @@ class MainWindow(QMainWindow):
             sys.exit(1)
     
     def SetupUI(self):
-        """Setup the main user interface for maximum image display."""
-        self.setWindowTitle("🏔️ Anderson's Library - Professional Edition")
+        """Setup the main user interface."""
+        self.setWindowTitle("Anderson's Library")
         self.setMinimumSize(1200, 800)
         
-        # FIXED: Start maximized for maximum image display
+        # Start maximized
         self.showMaximized()
         
         # Create central widget
         CentralWidget = QWidget()
         self.setCentralWidget(CentralWidget)
         
-        # Create main layout with splitter for resizable panels
+        # Create main layout
         MainLayout = QHBoxLayout(CentralWidget)
-        MainLayout.setContentsMargins(5, 5, 5, 5)  # Smaller margins for more space
+        MainLayout.setContentsMargins(5, 5, 5, 5)
         
-        # Create splitter for resizable panels
+        # Create splitter
         Splitter = QSplitter(Qt.Horizontal)
         MainLayout.addWidget(Splitter)
         
-        # Setup left panel (filters) - narrower for more book space
+        # Setup left panel (filters)
         LeftPanel = self.CreateLeftPanel()
         Splitter.addWidget(LeftPanel)
         
@@ -96,24 +92,24 @@ class MainWindow(QMainWindow):
         RightPanel = self.CreateRightPanel()
         Splitter.addWidget(RightPanel)
         
-        # FIXED: Optimize for maximum book display - smaller left panel
-        Splitter.setSizes([280, 1400])  # Left: 280px, Right: most space
-        Splitter.setCollapsible(0, False)  # Don't allow left panel to collapse
+        # Original proportions
+        Splitter.setSizes([350, 1050])
+        Splitter.setCollapsible(0, False)
         
-        # Setup status bar
+        # Original red status bar
         self.SetupStatusBar()
     
     def CreateLeftPanel(self) -> QFrame:
-        """Create the left panel with proper contrast."""
+        """Create the left panel with original styling."""
         LeftPanel = QFrame()
         LeftPanel.setObjectName("LeftPanel")
         LeftPanel.setFrameStyle(QFrame.StyledPanel)
-        LeftPanel.setFixedWidth(280)  # FIXED: Narrower for more book space
+        LeftPanel.setFixedWidth(350)
         
         # Left panel layout
         LeftLayout = QVBoxLayout(LeftPanel)
-        LeftLayout.setContentsMargins(12, 12, 12, 12)
-        LeftLayout.setSpacing(8)
+        LeftLayout.setContentsMargins(15, 15, 15, 15)
+        LeftLayout.setSpacing(10)
         
         # Add filter panel
         LeftLayout.addWidget(self.FilterPanel)
@@ -124,13 +120,13 @@ class MainWindow(QMainWindow):
         return LeftPanel
     
     def CreateRightPanel(self) -> QFrame:
-        """Create the right panel for maximum book display."""
+        """Create the right panel."""
         RightPanel = QFrame()
         RightPanel.setFrameStyle(QFrame.StyledPanel)
         
-        # Right panel layout with minimal margins
+        # Right panel layout
         RightLayout = QVBoxLayout(RightPanel)
-        RightLayout.setContentsMargins(2, 2, 2, 2)  # Minimal margins
+        RightLayout.setContentsMargins(5, 5, 5, 5)
         
         # Add book grid
         RightLayout.addWidget(self.BookGrid)
@@ -138,146 +134,96 @@ class MainWindow(QMainWindow):
         return RightPanel
     
     def SetupStatusBar(self):
-        """Setup the status bar."""
+        """Setup the original red status bar."""
         self.StatusBar = QStatusBar()
         self.setStatusBar(self.StatusBar)
-        self.StatusBar.showMessage("Ready - Select a category to browse books")
+        self.StatusBar.setStyleSheet("background-color: #780000; color: white;")
+        self.StatusBar.showMessage("Ready - Now with BLOB thumbnails and relational schema!")
     
     def ConnectSignals(self):
-        """FIXED: Connect signals using ALL possible signal names."""
+        """Connect signals with compatibility for different versions."""
         try:
             # Try multiple signal names for maximum compatibility
-            SignalConnections = 0
+            if hasattr(self.FilterPanel, 'SearchRequested'):
+                self.FilterPanel.SearchRequested.connect(self.OnSearchRequested)
             
-            # Search signals
-            for SearchSignal in ['SearchRequested', 'searchRequested', 'search_requested']:
-                if hasattr(self.FilterPanel, SearchSignal):
-                    getattr(self.FilterPanel, SearchSignal).connect(self.OnSearchRequested)
-                    SignalConnections += 1
-                    break
+            if hasattr(self.FilterPanel, 'FilterChanged'):
+                self.FilterPanel.FilterChanged.connect(self.OnFiltersChanged)
+            elif hasattr(self.FilterPanel, 'FiltersChanged'):
+                self.FilterPanel.FiltersChanged.connect(self.OnFiltersChanged)
             
-            # Filter signals  
-            for FilterSignal in ['FilterChanged', 'FiltersChanged', 'filterChanged', 'filter_changed']:
-                if hasattr(self.FilterPanel, FilterSignal):
-                    getattr(self.FilterPanel, FilterSignal).connect(self.OnFiltersChanged)
-                    SignalConnections += 1
-                    break
+            if hasattr(self.BookGrid, 'BookClicked'):
+                self.BookGrid.BookClicked.connect(self.OnBookClicked)
             
-            # Book click signals
-            for BookSignal in ['BookClicked', 'bookClicked', 'book_clicked']:
-                if hasattr(self.BookGrid, BookSignal):
-                    getattr(self.BookGrid, BookSignal).connect(self.OnBookClicked)
-                    SignalConnections += 1
-                    break
-            
-            self.Logger.info(f"Connected {SignalConnections} signals successfully")
+            self.Logger.info("Signals connected successfully")
             
         except Exception as Error:
             self.Logger.error(f"Failed to connect signals: {Error}")
     
-    def ApplyFixedTheme(self):
-        """FIXED: Apply theme with MAXIMUM contrast for readability."""
-        StyleSheet = """
-        /* Main Window - Light background */
-        QMainWindow {
-            background-color: #f8f9fa;
-            color: #2c3e50;
-        }
-        
-        /* Left Panel - Dark blue with BRIGHT WHITE text */
-        QFrame#LeftPanel {
-            background-color: #2c3e50;
-            border: 2px solid #34495e;
-            border-radius: 8px;
-            padding: 8px;
-        }
-        
-        /* CRITICAL FIX: Force WHITE text on ALL panel elements */
-        QFrame#LeftPanel * {
-            color: #ffffff !important;
-        }
-        
-        /* Panel Labels - BRIGHT WHITE text */
-        QFrame#LeftPanel QLabel {
-            color: #ffffff !important;
-            font-weight: bold;
-            font-size: 14px !important;
-            padding: 6px 0px;
-            background: transparent;
-        }
-        
-        /* ComboBox - White background, dark text, larger */
-        QComboBox {
-            background-color: #ffffff !important;
-            border: 2px solid #bdc3c7;
-            border-radius: 6px;
-            padding: 10px;
-            color: #2c3e50 !important;
-            font-size: 13px !important;
-            min-height: 28px;
-            font-weight: normal;
-        }
-        
-        QComboBox:focus {
-            border-color: #3498db;
-        }
-        
-        QComboBox::drop-down {
+    def ApplyOriginalBeautifulTheme(self):
+        """Apply the original beautiful blue gradient theme."""
+        # The exact original stylesheet that made it beautiful
+        OriginalStyleSheet = """
+        * {
+            background-color: qlineargradient(
+                spread:repeat, x1:1, y1:0, x2:1, y2:1, 
+                stop:0.00480769 rgba(3, 50, 76, 255), 
+                stop:0.293269 rgba(6, 82, 125, 255), 
+                stop:0.514423 rgba(8, 117, 178, 255), 
+                stop:0.745192 rgba(7, 108, 164, 255), 
+                stop:1 rgba(3, 51, 77, 255)
+            );
+            color: #FFFFFF;
             border: none;
-            width: 25px;
+        }
+
+        QComboBox::down-arrow {
+            image: url(Assets/arrow.png);
+        }
+
+        QComboBox::item:hover, QListView::item:hover {
+            border: 3px solid red;
         }
         
-        /* LineEdit (Search) - White background, dark text, larger */
-        QLineEdit {
-            background-color: #ffffff !important;
-            border: 2px solid #bdc3c7;
-            border-radius: 6px;
-            padding: 10px;
-            color: #2c3e50 !important;
-            font-size: 13px !important;
-            min-height: 28px;
+        QToolTip { 
+            color: #ffffff; 
+            border: none; 
+            font-size: 16px; 
         }
         
-        QLineEdit:focus {
-            border-color: #3498db;
-        }
-        
-        QLineEdit::placeholder {
-            color: #7f8c8d !important;
-        }
-        
-        /* Status Bar - Light background, larger text */
         QStatusBar {
-            background-color: #ecf0f1;
-            border-top: 1px solid #bdc3c7;
-            color: #2c3e50;
-            font-size: 13px;
-            padding: 8px;
-            font-weight: bold;
-        }
-        
-        /* Right Panel - Clean white */
-        QFrame {
-            background-color: #ffffff;
-            border: 1px solid #e1e8ed;
+            background-color: #780000; 
+            color: white;
         }
         """
         
-        self.setStyleSheet(StyleSheet)
-        self.Logger.info("FIXED high contrast theme applied")
+        self.setStyleSheet(OriginalStyleSheet)
+        self.Logger.info("Original beautiful blue gradient theme applied")
     
-    def SetInitialState(self):
-        """FIXED: Show empty state on startup, not all books."""
+    def LoadInitialData(self):
+        """Load initial data."""
         try:
-            # Show empty message instead of all books
-            self.BookGrid.DisplayBooks([])  # Empty list
-            self.StatusBar.showMessage("Ready - Select a category to browse books")
-            self.Logger.info("Application ready - empty state displayed")
+            QTimer.singleShot(100, self.DisplayAllBooks)
         except Exception as Error:
-            self.Logger.error(f"Failed to set initial state: {Error}")
+            self.Logger.error(f"Failed to load initial data: {Error}")
+    
+    def DisplayAllBooks(self):
+        """Display all books using the new schema."""
+        try:
+            # Use new database manager with relational schema
+            BookDicts = self.DatabaseManager.GetBooks()
+            self.BookGrid.DisplayBooks(BookDicts)
+            
+            BookCount = len(BookDicts)
+            self.StatusBar.showMessage(f"Showing all books: {BookCount} books with BLOB thumbnails")
+            self.Logger.info(f"Displayed {BookCount} books with new schema")
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to display books: {Error}")
+            self.StatusBar.showMessage("Error loading books")
     
     def OnSearchRequested(self, SearchTerm):
-        """FIXED: Handle search with better error handling."""
+        """Handle search request."""
         try:
             # Handle different search term formats
             if hasattr(SearchTerm, 'SearchTerm'):
@@ -288,14 +234,11 @@ class MainWindow(QMainWindow):
             self.Logger.info(f"Search requested: '{Term}'")
             
             if not Term:
-                # Empty search - show empty state
-                self.BookGrid.DisplayBooks([])
-                self.StatusBar.showMessage("Ready - Enter search term or select category")
+                self.DisplayAllBooks()
                 return
             
-            # Use database manager search directly for reliability
-            BookRows = self.DatabaseManager.GetBooks(SearchTerm=Term)
-            BookDicts = self.ConvertRowsToBooks(BookRows)
+            # Use new database manager search
+            BookDicts = self.DatabaseManager.GetBooks(SearchTerm=Term)
             self.BookGrid.DisplayBooks(BookDicts)
             
             BookCount = len(BookDicts)
@@ -304,10 +247,9 @@ class MainWindow(QMainWindow):
         except Exception as Error:
             self.Logger.error(f"Search failed: {Error}")
             self.StatusBar.showMessage(f"Search error: {Error}")
-            self.BookGrid.DisplayBooks([])  # Show empty on error
     
     def OnFiltersChanged(self, Category, Subject=None):
-        """FIXED: Handle category/subject filtering with debugging."""
+        """Handle category/subject filtering with new schema."""
         try:
             # Handle different parameter formats
             if hasattr(Category, 'Categories'):
@@ -323,17 +265,11 @@ class MainWindow(QMainWindow):
             
             # Handle "All Categories" case
             if Cat == "All Categories" or not Cat:
-                # Show empty state for "All Categories"
-                self.BookGrid.DisplayBooks([])
-                self.StatusBar.showMessage("Select a specific category to view books")
+                self.DisplayAllBooks()
                 return
             
-            # Use database manager filter directly
-            BookRows = self.DatabaseManager.GetBooks(Category=Cat, Subject=Sub)
-            BookDicts = self.ConvertRowsToBooks(BookRows)
-            
-            self.Logger.info(f"Database returned {len(BookRows)} books for Category='{Cat}', Subject='{Sub}'")
-            
+            # Use new database manager filter with JOINs
+            BookDicts = self.DatabaseManager.GetBooks(Category=Cat, Subject=Sub)
             self.BookGrid.DisplayBooks(BookDicts)
             
             BookCount = len(BookDicts)
@@ -347,30 +283,6 @@ class MainWindow(QMainWindow):
         except Exception as Error:
             self.Logger.error(f"Filter change failed: {Error}")
             self.StatusBar.showMessage(f"Filter error: {Error}")
-            self.BookGrid.DisplayBooks([])  # Show empty on error
-    
-    def ConvertRowsToBooks(self, Rows):
-        """Convert database rows to Book dictionaries."""
-        Books = []
-        for Row in Rows:
-            try:
-                if hasattr(Row, 'keys'):
-                    # Row is dict-like (sqlite3.Row)
-                    BookDict = dict(Row)
-                else:
-                    # Row is tuple - create basic dict
-                    BookDict = {
-                        'Title': Row[0] if len(Row) > 0 else 'Unknown',
-                        'Author': Row[1] if len(Row) > 1 else 'Unknown',
-                        'Category': Row[2] if len(Row) > 2 else 'General',
-                        'Subject': Row[3] if len(Row) > 3 else 'General'
-                    }
-                Books.append(BookDict)
-            except Exception as Error:
-                self.Logger.warning(f"Failed to convert row to book: {Error}")
-                continue
-        
-        return Books
     
     def OnBookClicked(self, BookTitle: str):
         """Handle book click event."""
@@ -401,7 +313,7 @@ class MainWindow(QMainWindow):
                 self.Logger.info("Database connection closed")
             
             event.accept()
-            self.Logger.info("🏔️ Anderson's Library - Professional Edition Closed 🏔️")
+            self.Logger.info("Anderson's Library Closed")
             
         except Exception as Error:
             self.Logger.error(f"Error during shutdown: {Error}")
@@ -409,9 +321,9 @@ class MainWindow(QMainWindow):
 
 
 def RunApplication():
-    """Run the Anderson's Library application."""
+    """Run the Anderson's Library application with new database schema."""
     App = QApplication(sys.argv)
-    App.setApplicationName("Anderson's Library - Professional Edition")
+    App.setApplicationName("Anderson's Library")
     App.setApplicationVersion("2.0")
     App.setOrganizationName("Project Himalaya")
     App.setOrganizationDomain("BowersWorld.com")
@@ -421,7 +333,7 @@ def RunApplication():
         Window.show()
         
         Logger = logging.getLogger("MainWindow")
-        Logger.info("🏔️ Anderson's Library - Professional Edition Started 🏔️")
+        Logger.info("Anderson's Library Started with BLOB thumbnails")
         
         return App.exec()
         

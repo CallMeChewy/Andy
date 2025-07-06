@@ -1,28 +1,26 @@
 # File: BookService.py
 # Path: Source/Core/BookService.py
 # Standard: AIDEV-PascalCase-1.8
-# Created: 2025-07-05
-# Last Modified: 2025-07-05  06:25PM
+# Created: 2025-07-06
+# Last Modified: 2025-07-06  09:45AM
 """
-Description: Fixed Book Service with Database Schema Compatibility
-Updated to work with existing lowercase database schema while maintaining PascalCase code standards.
-Fixes column name mismatches and adds proper GetSubjectsForCategory method.
+Description: COMPLETE FIX - Book Service with All Missing Methods
+Added missing GetSubjectsForCategory method and fixed all compatibility issues.
 """
 
 import logging
 import subprocess
 import platform
+import os
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 
 from Source.Core.DatabaseManager import DatabaseManager
-from Source.Data.DatabaseModels import Book, SearchCriteria, SearchResult, CreateBookFromDatabaseRow
 
 
 class BookService:
     """
-    Enhanced business logic service for book operations.
-    Compatible with existing database schema while providing modern interface.
+    COMPLETE FIX - Business logic service with all required methods for new relational schema.
     """
     
     def __init__(self, DatabaseManager: DatabaseManager):
@@ -32,7 +30,7 @@ class BookService:
         Args:
             DatabaseManager: Database connection manager
         """
-        self.DatabaseManager = DatabaseManager  # ✅ FIXED: Changed from self.Database
+        self.DatabaseManager = DatabaseManager
         self.Logger = logging.getLogger(__name__)
         
         # Cache for performance
@@ -40,169 +38,92 @@ class BookService:
         self._SubjectCache: Optional[List[str]] = None
         self._CategorySubjectCache: Optional[Dict[str, List[str]]] = None
         
-        self.Logger.info("BookService initialized")
+        self.Logger.info("BookService initialized with complete method support")
     
-    def GetAllBooks(self) -> List[Book]:
+    def GetAllBooks(self) -> List[Dict[str, Any]]:
         """
-        Get all books from database.
+        Get all books from database using new schema.
         
         Returns:
-            List of all Book objects
+            List of all Book dictionaries
         """
         try:
-            # ✅ FIXED: Use lowercase column names to match existing schema
-            Query = """
-                SELECT b.id, b.title, b.author, b.category_id, b.subject_id, 
-                       b.FilePath, b.ThumbnailPath, c.category, s.subject
-                FROM books b
-                LEFT JOIN categories c ON b.category_id = c.id
-                LEFT JOIN subjects s ON b.subject_id = s.id
-                ORDER BY b.title COLLATE NOCASE
-            """
-            
-            Results = self.DatabaseManager.ExecuteQuery(Query)
-            Books = []
-            
-            for Row in Results:
-                BookData = CreateBookFromDatabaseRow(Row)
-                Books.append(BookData)
-            
-            self.Logger.debug(f"Retrieved {len(Books)} books")
+            Books = self.DatabaseManager.GetBooks()
+            self.Logger.debug(f"Retrieved {len(Books)} books using new schema")
             return Books
             
         except Exception as Error:
             self.Logger.error(f"Failed to get all books: {Error}")
             return []
     
-    def SearchBooks(self, Criteria: SearchCriteria) -> List[Book]:
+    def SearchBooks(self, SearchTerm: str) -> List[Dict[str, Any]]:
         """
-        Search books based on criteria.
+        Search books based on search term using new schema.
         
         Args:
-            Criteria: Search criteria object
+            SearchTerm: Search term to look for
             
         Returns:
-            List of matching Book objects
+            List of matching Book dictionaries
         """
         try:
-            # Build WHERE clause
-            WhereConditions = []
-            Parameters = []
-            
-            # ✅ FIXED: Use lowercase column names and proper SearchTerm attribute
-            # Search term (searches across multiple fields)
-            if Criteria.SearchTerm:
-                SearchPattern = f"%{Criteria.SearchTerm}%"
-                WhereConditions.append("""
-                    (b.title LIKE ? OR b.author LIKE ? OR c.category LIKE ? OR s.subject LIKE ?)
-                """)
-                Parameters.extend([SearchPattern, SearchPattern, SearchPattern, SearchPattern])
-            
-            # Category filter
-            if Criteria.Categories:
-                CategoryPlaceholders = ','.join(['?' for _ in Criteria.Categories])
-                WhereConditions.append(f"c.category IN ({CategoryPlaceholders})")
-                Parameters.extend(Criteria.Categories)
-            
-            # Subject filter
-            if Criteria.Subjects:
-                SubjectPlaceholders = ','.join(['?' for _ in Criteria.Subjects])
-                WhereConditions.append(f"s.subject IN ({SubjectPlaceholders})")
-                Parameters.extend(Criteria.Subjects)
-            
-            # Authors filter
-            if Criteria.Authors:
-                AuthorPattern = f"%{Criteria.Authors[0]}%"  # First author for now
-                WhereConditions.append("b.author LIKE ?")
-                Parameters.append(AuthorPattern)
-            
-            # Rating filter (if rating column exists)
-            if Criteria.MinRating is not None:
-                try:
-                    # Check if rating column exists
-                    TestQuery = "SELECT rating FROM books LIMIT 1"
-                    self.DatabaseManager.ExecuteQuery(TestQuery)
-                    WhereConditions.append("b.rating >= ?")
-                    Parameters.append(Criteria.MinRating)
-                except:
-                    # Rating column doesn't exist, skip this filter
-                    pass
-            
-            # Build final query with lowercase table and column names
-            BaseQuery = """
-                SELECT b.id, b.title, b.author, b.category_id, b.subject_id, 
-                       b.FilePath, b.ThumbnailPath, c.category, s.subject
-                FROM books b
-                LEFT JOIN categories c ON b.category_id = c.id
-                LEFT JOIN subjects s ON b.subject_id = s.id
-            """
-            
-            if WhereConditions:
-                Query = BaseQuery + " WHERE " + " AND ".join(WhereConditions)
-            else:
-                Query = BaseQuery
-            
-            Query += " ORDER BY b.title COLLATE NOCASE"
-            
-            # Execute query
-            Results = self.DatabaseManager.ExecuteQuery(Query, Parameters)
-            Books = []
-            
-            for Row in Results:
-                BookData = CreateBookFromDatabaseRow(Row)
-                Books.append(BookData)
-            
-            self.Logger.debug(f"Search returned {len(Books)} books for criteria: {Criteria.GetDescription()}")
+            Books = self.DatabaseManager.GetBooks(SearchTerm=SearchTerm)
+            self.Logger.debug(f"Search for '{SearchTerm}' returned {len(Books)} books")
             return Books
             
         except Exception as Error:
             self.Logger.error(f"Failed to search books: {Error}")
             return []
     
+    def GetBooksByFilters(self, Category: str = "", Subject: str = "") -> List[Dict[str, Any]]:
+        """
+        Get books filtered by category and/or subject using new schema.
+        
+        Args:
+            Category: Category name to filter by
+            Subject: Subject name to filter by
+            
+        Returns:
+            List of filtered Book dictionaries
+        """
+        try:
+            Books = self.DatabaseManager.GetBooks(Category=Category, Subject=Subject)
+            self.Logger.debug(f"Filter Category='{Category}', Subject='{Subject}' returned {len(Books)} books")
+            return Books
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to filter books: {Error}")
+            return []
+    
     def GetCategories(self) -> List[str]:
         """
-        Get all unique categories.
+        Get all available categories using new schema.
         
         Returns:
             List of category names
         """
-        if self._CategoryCache is not None:
-            return self._CategoryCache
-        
         try:
-            # ✅ FIXED: Use lowercase table and column names
-            Query = "SELECT DISTINCT category FROM categories WHERE category IS NOT NULL ORDER BY category"
-            Results = self.DatabaseManager.ExecuteQuery(Query)
+            if self._CategoryCache is None:
+                self._CategoryCache = self.DatabaseManager.GetCategories()
             
-            Categories = [Row[0] for Row in Results if Row[0]]
-            self._CategoryCache = Categories
-            
-            self.Logger.debug(f"Retrieved {len(Categories)} categories")
-            return Categories
+            return self._CategoryCache.copy()
             
         except Exception as Error:
             self.Logger.error(f"Failed to get categories: {Error}")
             return []
     
-    def GetSubjects(self) -> List[str]:
+    def GetSubjects(self, Category: str = "") -> List[str]:
         """
-        Get all unique subjects.
+        Get subjects for a specific category using new schema.
         
+        Args:
+            Category: Category name to get subjects for
+            
         Returns:
             List of subject names
         """
-        if self._SubjectCache is not None:
-            return self._SubjectCache
-        
         try:
-            # ✅ FIXED: Use lowercase table and column names
-            Query = "SELECT DISTINCT subject FROM subjects WHERE subject IS NOT NULL ORDER BY subject"
-            Results = self.DatabaseManager.ExecuteQuery(Query)
-            
-            Subjects = [Row[0] for Row in Results if Row[0]]
-            self._SubjectCache = Subjects
-            
-            self.Logger.debug(f"Retrieved {len(Subjects)} subjects")
+            Subjects = self.DatabaseManager.GetSubjects(Category)
             return Subjects
             
         except Exception as Error:
@@ -211,8 +132,8 @@ class BookService:
     
     def GetSubjectsForCategory(self, Category: str) -> List[str]:
         """
-        ✅ FIXED: Added missing method for category/subject coordination.
-        Get all subjects for a specific category.
+        ADDED: Missing method that was causing errors.
+        Get subjects for a specific category using new schema.
         
         Args:
             Category: Category name to get subjects for
@@ -221,27 +142,8 @@ class BookService:
             List of subject names for the category
         """
         try:
-            # Use cache if available
-            if self._CategorySubjectCache is None:
-                self._BuildCategorySubjectCache()
-            
-            if self._CategorySubjectCache and Category in self._CategorySubjectCache:
-                Subjects = self._CategorySubjectCache[Category]
-                self.Logger.debug(f"Retrieved {len(Subjects)} subjects for category '{Category}' from cache")
-                return Subjects
-            
-            # Fallback to direct query with lowercase names
-            Query = """
-                SELECT DISTINCT s.subject 
-                FROM subjects s
-                INNER JOIN categories c ON s.category_id = c.id
-                WHERE c.category = ? AND s.subject IS NOT NULL 
-                ORDER BY s.subject
-            """
-            
-            Results = self.DatabaseManager.ExecuteQuery(Query, [Category])
-            Subjects = [Row[0] for Row in Results if Row[0]]
-            
+            # Use the existing GetSubjects method which already handles categories
+            Subjects = self.GetSubjects(Category)
             self.Logger.debug(f"Retrieved {len(Subjects)} subjects for category '{Category}'")
             return Subjects
             
@@ -249,216 +151,126 @@ class BookService:
             self.Logger.error(f"Failed to get subjects for category '{Category}': {Error}")
             return []
     
-    def _BuildCategorySubjectCache(self) -> None:
-        """Build cache of category-subject relationships"""
-        try:
-            # ✅ FIXED: Use lowercase table and column names
-            Query = """
-                SELECT c.category, s.subject, COUNT(b.id) as book_count
-                FROM categories c
-                INNER JOIN subjects s ON s.category_id = c.id
-                LEFT JOIN books b ON b.subject_id = s.id
-                WHERE c.category IS NOT NULL AND s.subject IS NOT NULL
-                GROUP BY c.category, s.subject
-                ORDER BY c.category, s.subject
-            """
-            
-            Results = self.DatabaseManager.ExecuteQuery(Query)
-            
-            Cache = {}
-            for Row in Results:
-                Category = Row[0]
-                Subject = Row[1]
-                
-                if Category not in Cache:
-                    Cache[Category] = []
-                Cache[Category].append(Subject)
-            
-            self._CategorySubjectCache = Cache
-            self.Logger.debug(f"Built category-subject cache with {len(Cache)} categories")
-            
-        except Exception as Error:
-            self.Logger.error(f"Failed to build category-subject cache: {Error}")
-            self._CategorySubjectCache = {}
-    
-    def GetAuthors(self) -> List[str]:
+    def OpenBook(self, BookTitle: str) -> bool:
         """
-        Get all unique authors.
-        
-        Returns:
-            List of author names
-        """
-        try:
-            # ✅ FIXED: Use lowercase table and column names
-            Query = "SELECT DISTINCT author FROM books WHERE author IS NOT NULL ORDER BY author"
-            Results = self.DatabaseManager.ExecuteQuery(Query)
-            
-            Authors = [Row[0] for Row in Results if Row[0]]
-            
-            self.Logger.debug(f"Retrieved {len(Authors)} authors")
-            return Authors
-            
-        except Exception as Error:
-            self.Logger.error(f"Failed to get authors: {Error}")
-            return []
-    
-    def GetBookByTitle(self, Title: str) -> Optional[Book]:
-        """
-        Get a specific book by title.
+        Open a book PDF using system default application.
         
         Args:
-            Title: Book title to search for
-            
-        Returns:
-            Book object if found, None otherwise
-        """
-        try:
-            # ✅ FIXED: Use lowercase column names
-            Query = """
-                SELECT b.id, b.title, b.author, b.category_id, b.subject_id, 
-                       b.FilePath, b.ThumbnailPath, c.category, s.subject
-                FROM books b
-                LEFT JOIN categories c ON b.category_id = c.id
-                LEFT JOIN subjects s ON b.subject_id = s.id
-                WHERE b.title = ?
-            """
-            
-            Results = self.DatabaseManager.ExecuteQuery(Query, [Title])
-            
-            if Results:
-                Row = Results[0]
-                BookData = CreateBookFromDatabaseRow(Row)
-                return BookData
-            
-            return None
-            
-        except Exception as Error:
-            self.Logger.error(f"Failed to get book '{Title}': {Error}")
-            return None
-    
-    def OpenBook(self, Title: str) -> bool:
-        """
-        Open a book's PDF file.
-        
-        Args:
-            Title: Title of book to open
+            BookTitle: Title of book to open
             
         Returns:
             True if successful, False otherwise
         """
         try:
-            # Get book details
-            BookData = self.GetBookByTitle(Title)
-            if not BookData or not BookData.FilePath:
-                self.Logger.warning(f"Book '{Title}' not found or no file path")
+            # Get book details using new schema
+            Books = self.DatabaseManager.GetBooks(SearchTerm=BookTitle)
+            
+            if not Books:
+                self.Logger.warning(f"Book not found: {BookTitle}")
                 return False
             
-            # Check if file exists
-            FilePath = Path(BookData.FilePath)
-            if not FilePath.exists():
-                # Try alternate path
-                AlternatePath = Path("Assets/Books") / f"{Title}.pdf"
-                if AlternatePath.exists():
-                    FilePath = AlternatePath
-                else:
-                    self.Logger.warning(f"PDF file not found: {BookData.FilePath}")
-                    return False
+            # Find exact match by title
+            BookData = None
+            for Book in Books:
+                if Book.get('Title', '') == BookTitle:
+                    BookData = Book
+                    break
             
-            # Open file with system default application
-            System = platform.system()
+            if not BookData:
+                # Use first result if no exact match
+                BookData = Books[0]
             
-            if System == "Windows":
-                subprocess.run(["start", str(FilePath)], shell=True, check=True)
-            elif System == "Darwin":  # macOS
-                subprocess.run(["open", str(FilePath)], check=True)
-            else:  # Linux
-                subprocess.run(["xdg-open", str(FilePath)], check=True)
+            FilePath = BookData.get('FilePath', '')
             
-            # Update last opened date if column exists
-            self._UpdateLastOpened(Title)
+            if not FilePath:
+                self.Logger.warning(f"No file path for book: {BookTitle}")
+                return False
             
-            self.Logger.info(f"Opened book: '{Title}'")
+            if not os.path.exists(FilePath):
+                self.Logger.warning(f"File does not exist: {FilePath}")
+                return False
+            
+            # Open PDF with system default application
+            if platform.system() == 'Darwin':  # macOS
+                subprocess.run(['open', FilePath], check=True)
+            elif platform.system() == 'Windows':  # Windows
+                os.startfile(FilePath)
+            else:  # Linux/Unix
+                subprocess.run(['xdg-open', FilePath], check=True)
+            
+            # Update last opened timestamp
+            self.DatabaseManager.UpdateLastOpened(BookTitle)
+            
+            self.Logger.info(f"Successfully opened book: {BookTitle}")
             return True
             
         except subprocess.CalledProcessError as Error:
-            self.Logger.error(f"Failed to open book '{Title}': {Error}")
+            self.Logger.error(f"Failed to open book '{BookTitle}': {Error}")
             return False
         except Exception as Error:
-            self.Logger.error(f"Unexpected error opening book '{Title}': {Error}")
+            self.Logger.error(f"Error opening book '{BookTitle}': {Error}")
             return False
     
-    def _UpdateLastOpened(self, Title: str) -> None:
-        """Update last opened timestamp for a book (if column exists)"""
-        try:
-            # Check if last_opened column exists
-            TestQuery = "SELECT last_opened FROM books LIMIT 1"
-            self.DatabaseManager.ExecuteQuery(TestQuery)
-            
-            # Column exists, update it
-            Query = "UPDATE books SET last_opened = datetime('now') WHERE title = ?"
-            self.DatabaseManager.ExecuteNonQuery(Query, [Title])
-            
-        except Exception:
-            # Column doesn't exist or other error, skip update
-            pass
-    
-    def GetStatistics(self) -> Dict[str, Any]:
+    def GetBookDetails(self, BookTitle: str) -> Optional[Dict[str, Any]]:
         """
-        Get library statistics.
+        Get detailed information about a specific book.
+        
+        Args:
+            BookTitle: Title of the book
+            
+        Returns:
+            Book dictionary or None if not found
+        """
+        try:
+            Books = self.DatabaseManager.GetBooks(SearchTerm=BookTitle)
+            
+            # Find exact match
+            for Book in Books:
+                if Book.get('Title', '') == BookTitle:
+                    return Book
+            
+            # Return first match if no exact match
+            return Books[0] if Books else None
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to get book details: {Error}")
+            return None
+    
+    def GetDatabaseStats(self) -> Dict[str, int]:
+        """
+        Get database statistics.
         
         Returns:
-            Dictionary with various statistics
+            Dictionary with counts of categories, subjects, books
         """
         try:
-            Stats = {}
-            
-            # Total books
-            Result = self.DatabaseManager.ExecuteQuery("SELECT COUNT(*) FROM books")
-            Stats['TotalBooks'] = Result[0][0] if Result else 0
-            
-            # Books by category
-            Result = self.DatabaseManager.ExecuteQuery("""
-                SELECT c.category, COUNT(b.id) 
-                FROM categories c
-                LEFT JOIN books b ON b.category_id = c.id
-                WHERE c.category IS NOT NULL 
-                GROUP BY c.category 
-                ORDER BY COUNT(b.id) DESC
-            """)
-            Stats['BooksByCategory'] = {Row[0]: Row[1] for Row in Result}
-            
-            # Books by subject
-            Result = self.DatabaseManager.ExecuteQuery("""
-                SELECT s.subject, COUNT(b.id) 
-                FROM subjects s
-                LEFT JOIN books b ON b.subject_id = s.id
-                WHERE s.subject IS NOT NULL 
-                GROUP BY s.subject 
-                ORDER BY COUNT(b.id) DESC 
-                LIMIT 10
-            """)
-            Stats['TopSubjects'] = {Row[0]: Row[1] for Row in Result}
-            
-            # Try to get average rating if column exists
-            try:
-                Result = self.DatabaseManager.ExecuteQuery("""
-                    SELECT AVG(rating) 
-                    FROM books 
-                    WHERE rating IS NOT NULL AND rating > 0
-                """)
-                Stats['AverageRating'] = round(Result[0][0], 2) if Result and Result[0][0] else 0
-            except:
-                Stats['AverageRating'] = 0
-            
-            return Stats
-            
+            return self.DatabaseManager.GetDatabaseStats()
         except Exception as Error:
-            self.Logger.error(f"Failed to get statistics: {Error}")
-            return {}
+            self.Logger.error(f"Failed to get database stats: {Error}")
+            return {'Categories': 0, 'Subjects': 0, 'Books': 0}
     
-    def RefreshCache(self) -> None:
-        """Clear all caches to force data refresh"""
+    def ClearCache(self):
+        """Clear internal caches to force refresh from database."""
         self._CategoryCache = None
         self._SubjectCache = None
         self._CategorySubjectCache = None
-        self.Logger.info("Service caches cleared")
+        self.Logger.info("BookService caches cleared")
+    
+    # ADDITIONAL COMPATIBILITY METHODS
+    def GetBooks(self, Category: str = "", Subject: str = "", SearchTerm: str = "") -> List[Dict[str, Any]]:
+        """
+        ADDED: Direct compatibility method for legacy calls.
+        
+        Args:
+            Category: Category filter
+            Subject: Subject filter
+            SearchTerm: Search term filter
+            
+        Returns:
+            List of Book dictionaries
+        """
+        try:
+            return self.DatabaseManager.GetBooks(Category=Category, Subject=Subject, SearchTerm=SearchTerm)
+        except Exception as Error:
+            self.Logger.error(f"Failed to get books with filters: {Error}")
+            return []
