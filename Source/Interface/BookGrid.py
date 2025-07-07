@@ -30,10 +30,11 @@ class BookCard(QFrame):
     
     BookClicked = Signal(dict)
     
-    def __init__(self, BookData: dict):
+    def __init__(self, BookData: dict, ViewMode: str = "grid"):
         super().__init__()
         
         self.BookData = BookData
+        self.ViewMode = ViewMode
         self.Logger = logging.getLogger(__name__)
         
         # Set up the card
@@ -42,21 +43,35 @@ class BookCard(QFrame):
     
     def _SetupCard(self) -> None:
         """Setup the book card layout and styling"""
-        # Set fixed size for consistent grid
-        self.setFixedSize(180, 280)
         self.setFrameStyle(QFrame.Box | QFrame.Raised)
         self.setLineWidth(2)
         
-        # Create layout
-        Layout = QVBoxLayout(self)
-        Layout.setContentsMargins(8, 8, 8, 8)
-        Layout.setSpacing(5)
+        if self.ViewMode == "list":
+            # List mode: horizontal layout with smaller icon
+            self.setFixedSize(600, 80)
+            Layout = QHBoxLayout(self)
+            Layout.setContentsMargins(8, 2, 8, 2)
+            Layout.setSpacing(10)
+        else:
+            # Grid mode: vertical layout with large icon
+            self.setFixedSize(180, 280)
+            Layout = QVBoxLayout(self)
+            Layout.setContentsMargins(8, 8, 8, 8)
+            Layout.setSpacing(5)
         
         # Cover image label
         self.CoverLabel = QLabel()
         self.CoverLabel.setAlignment(Qt.AlignCenter)
-        self.CoverLabel.setMinimumSize(160, 200)
-        self.CoverLabel.setMaximumSize(160, 200)
+        
+        if self.ViewMode == "list":
+            # Small icon for list view
+            self.CoverLabel.setMinimumSize(60, 60)
+            self.CoverLabel.setMaximumSize(60, 60)
+        else:
+            # Large icon for grid view
+            self.CoverLabel.setMinimumSize(160, 200)
+            self.CoverLabel.setMaximumSize(160, 200)
+            
         self.CoverLabel.setStyleSheet("""
             QLabel {
                 border: 2px solid #4CAF50;
@@ -69,19 +84,36 @@ class BookCard(QFrame):
         
         # Title label
         Title = self.BookData.get('Title', 'Unknown Title')
-        self.TitleLabel = QLabel(Title[:25] + "..." if len(Title) > 25 else Title)
-        self.TitleLabel.setAlignment(Qt.AlignCenter)
-        self.TitleLabel.setWordWrap(True)
-        self.TitleLabel.setStyleSheet("""
-            QLabel {
-                color: #FFFFFF;
-                font-size: 12px;
-                font-weight: bold;
-                background-color: rgba(0, 0, 0, 0.7);
-                border-radius: 4px;
-                padding: 4px;
-            }
-        """)
+        if self.ViewMode == "list":
+            # Full title for list view
+            self.TitleLabel = QLabel(Title)
+            self.TitleLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.TitleLabel.setWordWrap(True)
+            self.TitleLabel.setStyleSheet("""
+                QLabel {
+                    color: #FFFFFF;
+                    font-size: 14px;
+                    font-weight: bold;
+                    background-color: rgba(0, 0, 0, 0.7);
+                    border-radius: 4px;
+                    padding: 8px;
+                }
+            """)
+        else:
+            # Truncated title for grid view
+            self.TitleLabel = QLabel(Title[:25] + "..." if len(Title) > 25 else Title)
+            self.TitleLabel.setAlignment(Qt.AlignCenter)
+            self.TitleLabel.setWordWrap(True)
+            self.TitleLabel.setStyleSheet("""
+                QLabel {
+                    color: #FFFFFF;
+                    font-size: 12px;
+                    font-weight: bold;
+                    background-color: rgba(0, 0, 0, 0.7);
+                    border-radius: 4px;
+                    padding: 4px;
+                }
+            """)
         Layout.addWidget(self.TitleLabel)
         
         # Set hover effects
@@ -100,23 +132,37 @@ class BookCard(QFrame):
         """Load and display the book cover"""
         try:
             # Try to load cover from BLOB data first
-            if 'CoverImage' in self.BookData and self.BookData['CoverImage']:
+            if 'ThumbnailData' in self.BookData and self.BookData['ThumbnailData']:
                 Pixmap = QPixmap()
-                if Pixmap.loadFromData(self.BookData['CoverImage']):
-                    # Scale to fit the label
-                    ScaledPixmap = Pixmap.scaled(
-                        156, 196, Qt.KeepAspectRatio, Qt.SmoothTransformation
-                    )
+                if Pixmap.loadFromData(self.BookData['ThumbnailData']):
+                    # Scale to fit the label based on view mode
+                    if self.ViewMode == "list":
+                        ScaledPixmap = Pixmap.scaled(
+                            56, 56, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                        )
+                    else:
+                        ScaledPixmap = Pixmap.scaled(
+                            156, 196, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                        )
                     self.CoverLabel.setPixmap(ScaledPixmap)
                     return
+                else:
+                    self.Logger.warning(f"Failed to load thumbnail BLOB for book {self.BookData.get('ID', 'Unknown')}")
             
             # Fallback to file-based cover
             CoverPath = Path(f"Data/Covers/{self.BookData.get('ID', 0)}.jpg")
             if CoverPath.exists():
                 Pixmap = QPixmap(str(CoverPath))
-                ScaledPixmap = Pixmap.scaled(
-                    156, 196, Qt.KeepAspectRatio, Qt.SmoothTransformation
-                )
+                if Pixmap.isNull():
+                    self.Logger.warning(f"Failed to load file-based cover from {CoverPath} for book {self.BookData.get('ID', 'Unknown')}")
+                if self.ViewMode == "list":
+                    ScaledPixmap = Pixmap.scaled(
+                        56, 56, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                    )
+                else:
+                    ScaledPixmap = Pixmap.scaled(
+                        156, 196, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                    )
                 self.CoverLabel.setPixmap(ScaledPixmap)
                 return
             
@@ -129,15 +175,23 @@ class BookCard(QFrame):
     
     def _CreatePlaceholder(self) -> None:
         """Create a placeholder image for books without covers"""
-        Placeholder = QPixmap(156, 196)
+        if self.ViewMode == "list":
+            Placeholder = QPixmap(56, 56)
+            FontSize = 8
+            Text = "No\nCover"
+        else:
+            Placeholder = QPixmap(156, 196)
+            FontSize = 12
+            Text = "No Cover\nAvailable"
+            
         Placeholder.fill(QColor("#E0E0E0"))
         
         # Draw placeholder text
         Painter = QPainter(Placeholder)
         Painter.setPen(QColor("#757575"))
-        Font = QFont("Arial", 12, QFont.Bold)
+        Font = QFont("Arial", FontSize, QFont.Bold)
         Painter.setFont(Font)
-        Painter.drawText(Placeholder.rect(), Qt.AlignCenter, "No Cover\nAvailable")
+        Painter.drawText(Placeholder.rect(), Qt.AlignCenter, Text)
         Painter.end()
         
         self.CoverLabel.setPixmap(Placeholder)
@@ -161,6 +215,8 @@ class BookGrid(QWidget):
     """
     
     BookSelected = Signal(dict)
+    BookOpened = Signal(dict)
+    SelectionChanged = Signal(int)
     
     def __init__(self, BookService: BookService):
         super().__init__()
@@ -174,6 +230,7 @@ class BookGrid(QWidget):
         self.BookCards: List[BookCard] = []
         
         # Layout settings
+        self.ViewMode = "grid"
         self.ColumnsCount = 4
         self.CardWidth = 180
         self.CardHeight = 280
@@ -194,18 +251,25 @@ class BookGrid(QWidget):
         # Create scroll area
         self.ScrollArea = QScrollArea()
         self.ScrollArea.setWidgetResizable(True)
-        self.ScrollArea.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.ScrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.ScrollArea.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.ScrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         MainLayout.addWidget(self.ScrollArea)
         
         # Create scrollable content widget
         self.ContentWidget = QWidget()
         self.ScrollArea.setWidget(self.ContentWidget)
+
+        # Add a label for the placeholder image
+        self.PlaceholderLabel = QLabel(self.ContentWidget)
+        self.PlaceholderLabel.setAlignment(Qt.AlignCenter)
+        self.PlaceholderLabel.setPixmap(QPixmap("Assets/BowersWorld.png"))
+        self.PlaceholderLabel.setVisible(False)
         
         # Create grid layout for book cards
         self.GridLayout = QGridLayout(self.ContentWidget)
-        self.GridLayout.setSpacing(15)
-        self.GridLayout.setContentsMargins(20, 20, 20, 20)
+        self.GridLayout.setVerticalSpacing(0)
+        self.GridLayout.setHorizontalSpacing(15)
+        self.GridLayout.setContentsMargins(10, 10, 10, 10)
         
         # Apply styling
         self.setStyleSheet("""
@@ -254,6 +318,12 @@ class BookGrid(QWidget):
         try:
             # Clear existing cards
             self._ClearGrid()
+
+            if not self.CurrentBooks:
+                self.PlaceholderLabel.setVisible(True)
+                return
+            else:
+                self.PlaceholderLabel.setVisible(False)
             
             # Calculate columns based on available width
             self._CalculateColumns()
@@ -261,19 +331,28 @@ class BookGrid(QWidget):
             # Add book cards to grid
             Row, Col = 0, 0
             for BookData in self.CurrentBooks:
-                Card = BookCard(BookData)
+                Card = BookCard(BookData, self.ViewMode)
                 Card.BookClicked.connect(self._OnBookSelected)
                 
                 self.GridLayout.addWidget(Card, Row, Col)
                 self.BookCards.append(Card)
                 
-                Col += 1
-                if Col >= self.ColumnsCount:
-                    Col = 0
+                if self.ViewMode == "list":
+                    # List view: single column
                     Row += 1
+                else:
+                    # Grid view: multiple columns
+                    Col += 1
+                    if Col >= self.ColumnsCount:
+                        Col = 0
+                        Row += 1
             
-            # Add stretch to center the grid
-            self.GridLayout.setRowStretch(Row + 1, 1)
+            # Add stretch to push everything to the left
+            if self.ViewMode == "list":
+                self.GridLayout.setRowStretch(Row, 1)
+            else:
+                self.GridLayout.setColumnStretch(Col + 1, 1)
+                self.GridLayout.setRowStretch(Row + 1, 1)
             
             # Process events to update display
             QApplication.processEvents()
@@ -299,6 +378,11 @@ class BookGrid(QWidget):
     def _CalculateColumns(self) -> None:
         """Calculate optimal number of columns based on available width"""
         try:
+            if self.ViewMode == "list":
+                # List view: always single column
+                self.ColumnsCount = 1
+                return
+                
             AvailableWidth = self.ScrollArea.viewport().width()
             
             # Account for margins and spacing
@@ -320,11 +404,8 @@ class BookGrid(QWidget):
         """Handle book selection"""
         try:
             self.BookSelected.emit(BookData)
+            self.BookOpened.emit(BookData)
             self.Logger.info(f"Book selected: {BookData.get('Title', 'Unknown')}")
-            
-            # Open PDF if available
-            if self.BookService:
-                self.BookService.OpenBook(BookData.get('ID', 0))
             
         except Exception as Error:
             self.Logger.error(f"Failed to handle book selection: {Error}")
@@ -336,11 +417,14 @@ class BookGrid(QWidget):
             
             if self.BookService:
                 # Get filtered books from service
-                FilteredBooks = self.BookService.FilterBooks(
-                    Category=Filters.get('Category', ''),
-                    Subject=Filters.get('Subject', ''),
-                    SearchText=Filters.get('SearchText', '')
-                )
+                Category = Filters.get('Category', '')
+                Subject = Filters.get('Subject', '')
+                SearchText = Filters.get('SearchText', '')
+                
+                if SearchText:
+                    FilteredBooks = self.BookService.SearchBooks(SearchText)
+                else:
+                    FilteredBooks = self.BookService.GetBooksByFilters(Category, Subject)
                 
                 self.CurrentBooks = FilteredBooks
                 self._UpdateDisplay()
@@ -381,6 +465,40 @@ class BookGrid(QWidget):
     def GetBookCount(self) -> int:
         """Get the current number of displayed books"""
         return len(self.CurrentBooks)
+    
+    def SetBooks(self, Books: List[Dict]) -> None:
+        """Set books to display in the grid"""
+        try:
+            self.CurrentBooks = Books
+            self._UpdateDisplay()
+            self.SelectionChanged.emit(len(Books))
+            self.Logger.info(f"Set {len(Books)} books for display")
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to set books: {Error}")
+    
+    def SetViewMode(self, Mode: str) -> None:
+        """Set the view mode for the book grid"""
+        try:
+            if Mode not in ["grid", "list"]:
+                self.Logger.warning(f"Unknown view mode: {Mode}")
+                return
+                
+            if self.ViewMode != Mode:
+                self.ViewMode = Mode
+                
+                if Mode == "grid":
+                    self.CardWidth = 180
+                    self.CardHeight = 280
+                elif Mode == "list":
+                    self.CardWidth = 600
+                    self.CardHeight = 80
+                
+                self._UpdateDisplay()
+                self.Logger.info(f"View mode set to: {Mode}")
+            
+        except Exception as Error:
+            self.Logger.error(f"Failed to set view mode: {Error}")
     
     def RefreshDisplay(self) -> None:
         """Refresh the entire display"""

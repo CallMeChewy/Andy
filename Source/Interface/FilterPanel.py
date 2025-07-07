@@ -37,7 +37,7 @@ from PySide6.QtWidgets import (
     QComboBox, QPushButton, QFrame, QGroupBox, QSpinBox,
     QCheckBox, QSlider, QTextEdit, QScrollArea
 )
-from PySide6.QtCore import Qt, Signal, QTimer, pyqtSignal
+from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QFont, QPalette, QIcon
 
 from Source.Core.BookService import BookService
@@ -58,9 +58,10 @@ class FilterPanel(QWidget):
     # Signals for communication with main window
     FiltersChanged = Signal(dict)  # Emitted when any filter changes
     SearchRequested = Signal(str)  # Emitted when search is performed
-    ResetRequested = Signal()  # Emitted when filters are reset
     CategoryChanged = Signal(str)  # Emitted when category selection changes
     SubjectChanged = Signal(str)  # Emitted when subject selection changes
+    ViewModeChanged = Signal(str) # Emitted when the view mode changes
+    SubjectsUpdated = Signal() # Emitted when the subjects dropdown is updated
     
     def __init__(self, BookService: BookService, parent=None):
         """
@@ -112,6 +113,10 @@ class FilterPanel(QWidget):
             MainLayout = QVBoxLayout(self)
             MainLayout.setContentsMargins(12, 12, 12, 12)
             MainLayout.setSpacing(16)
+
+            # View mode buttons
+            ViewModeLayout = self.CreateViewModeButtons()
+            MainLayout.addLayout(ViewModeLayout)
             
             # Title
             TitleLabel = QLabel("--- Options ---")
@@ -127,13 +132,7 @@ class FilterPanel(QWidget):
             FilterGroup = self.CreateFilterSection()
             MainLayout.addWidget(FilterGroup)
             
-            # Advanced options section
-            AdvancedGroup = self.CreateAdvancedSection()
-            MainLayout.addWidget(AdvancedGroup)
             
-            # Action buttons
-            ButtonLayout = self.CreateActionButtons()
-            MainLayout.addLayout(ButtonLayout)
             
             # Add stretch to push everything to top
             MainLayout.addStretch()
@@ -206,60 +205,26 @@ class FilterPanel(QWidget):
             self.Logger.error(f"Failed to create filter section: {Error}")
             return QGroupBox()
     
-    def CreateAdvancedSection(self) -> QGroupBox:
-        """Create the advanced filtering options section."""
+    def CreateViewModeButtons(self) -> QHBoxLayout:
+        """Create the view mode buttons section."""
         try:
-            AdvancedGroup = QGroupBox("Advanced")
-            AdvancedLayout = QVBoxLayout(AdvancedGroup)
-            AdvancedLayout.setSpacing(8)
+            ViewModeLayout = QHBoxLayout()
+            ViewModeLayout.setSpacing(8)
             
-            # Rating filter
-            RatingLayout = QHBoxLayout()
-            RatingLayout.addWidget(QLabel("Min Rating:"))
+            # Grid button
+            self.GridButton = QPushButton("Grid")
+            self.GridButton.setMinimumHeight(32)
+            ViewModeLayout.addWidget(self.GridButton)
+
+            # List button
+            self.ListButton = QPushButton("List")
+            self.ListButton.setMinimumHeight(32)
+            ViewModeLayout.addWidget(self.ListButton)
             
-            self.RatingSlider = QSlider(Qt.Horizontal)
-            self.RatingSlider.setRange(0, 5)
-            self.RatingSlider.setValue(0)
-            self.RatingSlider.setTickPosition(QSlider.TicksBelow)
-            self.RatingSlider.setTickInterval(1)
-            RatingLayout.addWidget(self.RatingSlider)
-            
-            self.RatingLabel = QLabel("0")
-            self.RatingLabel.setMinimumWidth(20)
-            RatingLayout.addWidget(self.RatingLabel)
-            
-            AdvancedLayout.addLayout(RatingLayout)
-            
-            # Thumbnail filter
-            self.ThumbnailCheckBox = QCheckBox("Has Thumbnail")
-            AdvancedLayout.addWidget(self.ThumbnailCheckBox)
-            
-            return AdvancedGroup
+            return ViewModeLayout
             
         except Exception as Error:
-            self.Logger.error(f"Failed to create advanced section: {Error}")
-            return QGroupBox()
-    
-    def CreateActionButtons(self) -> QHBoxLayout:
-        """Create the action buttons section."""
-        try:
-            ButtonLayout = QHBoxLayout()
-            ButtonLayout.setSpacing(8)
-            
-            # Reset button
-            self.ResetButton = QPushButton("Reset")
-            self.ResetButton.setMinimumHeight(32)
-            ButtonLayout.addWidget(self.ResetButton)
-            
-            # Apply button
-            ApplyButton = QPushButton("Apply")
-            ApplyButton.setMinimumHeight(32)
-            ButtonLayout.addWidget(ApplyButton)
-            
-            return ButtonLayout
-            
-        except Exception as Error:
-            self.Logger.error(f"Failed to create action buttons: {Error}")
+            self.Logger.error(f"Failed to create view mode buttons: {Error}")
             return QHBoxLayout()
     
     def LoadInitialData(self) -> None:
@@ -307,10 +272,12 @@ class FilterPanel(QWidget):
             
             if self.ThumbnailCheckBox:
                 self.ThumbnailCheckBox.stateChanged.connect(self.OnThumbnailFilterChanged)
-            
-            # Action button signals
-            if self.ResetButton:
-                self.ResetButton.clicked.connect(self.OnResetClicked)
+
+            if self.GridButton:
+                self.GridButton.clicked.connect(lambda: self.ViewModeChanged.emit("grid"))
+
+            if self.ListButton:
+                self.ListButton.clicked.connect(lambda: self.ViewModeChanged.emit("list"))
             
             self.Logger.debug("UI signals connected successfully")
             
@@ -389,9 +356,9 @@ class FilterPanel(QWidget):
                 }
                 
                 QPushButton {
-                    background-color: #0078d4;
+                    background-color: #4a4a4a;
                     color: #ffffff;
-                    border: none;
+                    border: 2px solid #555555;
                     border-radius: 6px;
                     padding: 8px 16px;
                     font-weight: 500;
@@ -399,11 +366,11 @@ class FilterPanel(QWidget):
                 }
                 
                 QPushButton:hover {
-                    background-color: #106ebe;
+                    background-color: #5a5a5a;
                 }
                 
                 QPushButton:pressed {
-                    background-color: #005a9e;
+                    background-color: #3a3a3a;
                 }
                 
                 QPushButton:disabled {
@@ -509,8 +476,10 @@ class FilterPanel(QWidget):
             # Update subjects for selected category
             self.UpdateSubjects(self.CurrentCategory)
             
-            # Clear search when filter changes
+            # Clear search and subject when category changes
             self.ClearSearch()
+            if self.SubjectComboBox:
+                self.SubjectComboBox.setCurrentIndex(0)
             
             # Emit category change signal
             self.CategoryChanged.emit(self.CurrentCategory)
@@ -563,44 +532,6 @@ class FilterPanel(QWidget):
         except Exception as Error:
             self.Logger.error(f"Failed to handle thumbnail filter change: {Error}")
     
-    def OnResetClicked(self) -> None:
-        """Handle reset button click."""
-        try:
-            self.Logger.info("Resetting all filters")
-            
-            self.IsUpdatingUI = True
-            
-            # Reset UI components
-            if self.SearchLineEdit:
-                self.SearchLineEdit.clear()
-            
-            if self.CategoryComboBox:
-                self.CategoryComboBox.setCurrentIndex(0)
-            
-            if self.SubjectComboBox:
-                self.SubjectComboBox.setCurrentIndex(0)
-                self.SubjectComboBox.setEnabled(False)
-            
-            if self.RatingSlider:
-                self.RatingSlider.setValue(0)
-            
-            if self.ThumbnailCheckBox:
-                self.ThumbnailCheckBox.setChecked(False)
-            
-            # Reset state
-            self.CurrentCategory = ""
-            self.CurrentSubject = ""
-            self.CurrentSearchTerm = ""
-            
-            self.IsUpdatingUI = False
-            
-            # Emit reset signal
-            self.ResetRequested.emit()
-            
-        except Exception as Error:
-            self.Logger.error(f"Failed to handle reset: {Error}")
-            self.IsUpdatingUI = False
-    
     def UpdateSubjects(self, Category: str) -> None:
         """Update subjects dropdown based on selected category."""
         try:
@@ -629,6 +560,7 @@ class FilterPanel(QWidget):
             self.CurrentSubject = ""
             
             self.IsUpdatingUI = False
+            self.SubjectsUpdated.emit()
             
         except Exception as Error:
             self.Logger.error(f"Failed to update subjects: {Error}")

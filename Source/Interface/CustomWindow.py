@@ -237,7 +237,7 @@ class CustomTitleBar(QWidget):
         self.exit_button.clicked.connect(self.parent.close)
         self.exit_button.setStyleSheet(
             """
-        QPushButton {s
+        QPushButton {
             background-color: none;
         }
         QPushButton:hover {
@@ -261,12 +261,12 @@ class CustomTitleBar(QWidget):
         self.normal_size = self.parent.size()
 
     def toggle_maximize(self):
-        if self.parent.isFullScreen():
+        if self.parent.isMaximized():
             self.parent.showNormal()
             self.parent.resize(self.normal_size)
         else:
             self.normal_size = self.parent.size()
-            self.parent.showFullScreen()
+            self.parent.showMaximized()
 
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.LeftButton:

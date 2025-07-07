@@ -20,12 +20,10 @@ def list_py_files_with_details(root_dir, gitignore_path, filter_date=None):
     """
     ignored_spec = get_ignored_patterns(gitignore_path)
     
-    print("Python Files (excluding .gitignore patterns):")
-    print("---------------------------------------------")
+    file_details = []
 
     for dirpath, dirnames, filenames in os.walk(root_dir):
         # Filter out ignored directories first
-        # Create a copy of dirnames to modify in place
         dirnames[:] = [d for d in dirnames if not ignored_spec.match_file(os.path.join(dirpath, d))]
 
         for filename in filenames:
@@ -42,7 +40,6 @@ def list_py_files_with_details(root_dir, gitignore_path, filter_date=None):
                             continue # Skip if date doesn't match filter
 
                         size_kb = file_stat.st_size / 1024
-                        mod_date_str = mod_date_obj.strftime('%Y-%m-%d %H:%M')
                         
                         # Count lines in the file
                         line_count = 0
@@ -53,11 +50,26 @@ def list_py_files_with_details(root_dir, gitignore_path, filter_date=None):
                         # Get relative path from root_dir
                         relative_filepath = os.path.relpath(filepath, root_dir)
                         
-                        print(f"{mod_date_str} {size_kb:.2f} KB {line_count} lines {relative_filepath}")
+                        file_details.append({
+                            'mod_time': mod_time,
+                            'size_kb': size_kb,
+                            'line_count': line_count,
+                            'relative_filepath': relative_filepath,
+                            'mod_date_obj': mod_date_obj
+                        })
                     except FileNotFoundError:
                         print(f"Warning: File not found after check: {filepath}")
                     except Exception as e:
                         print(f"Error processing {filepath}: {e}")
+
+    # Sort files by modification time (most recent first)
+    file_details.sort(key=lambda x: x['mod_time'], reverse=True)
+
+    print("Python Files (excluding .gitignore patterns), sorted by date (most recent first):")
+    print("--------------------------------------------------------------------------------")
+    for details in file_details:
+        mod_date_str = details['mod_date_obj'].strftime('%Y-%m-%d %H:%M')
+        print(f"{mod_date_str} {details['size_kb']:.2f} KB {details['line_count']} lines {details['relative_filepath']}")
 
 if __name__ == "__main__":
     current_dir = os.getcwd()

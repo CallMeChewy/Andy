@@ -14,6 +14,9 @@ import os
 from pathlib import Path
 from typing import Optional
 
+# Ensure application's working directory is set correctly
+os.chdir(Path(__file__).parent)
+
 # Ensure Source directory is in Python path
 SourcePath = Path(__file__).parent / "Source"
 if str(SourcePath) not in sys.path:
@@ -22,7 +25,7 @@ if str(SourcePath) not in sys.path:
 try:
     from PySide6.QtWidgets import QApplication, QMessageBox
     from PySide6.QtCore import Qt
-    from PySide6.QtGui import QFont
+    from PySide6.QtGui import QFont, QIcon
 except ImportError as ImportError:
     print("❌ PySide6 is not installed!")
     print("💡 Please install it with: pip install PySide6")
@@ -31,7 +34,6 @@ except ImportError as ImportError:
 # Import our modules using original pattern
 try:
     from Source.Interface.MainWindow import MainWindow
-    from Source.Interface.CustomWindow import CustomWindow
     from Source.Core.DatabaseManager import DatabaseManager
     from Source.Core.BookService import BookService
 except ImportError as Error:
@@ -67,7 +69,6 @@ def ValidateEnvironment() -> bool:
         "Source/Interface/FilterPanel.py",
         "Source/Interface/BookGrid.py",
         "Source/Interface/MainWindow.py",
-        "Source/Interface/CustomWindow.py"  # ✅ Critical for original pattern
     ]
     
     MissingFiles = []
@@ -96,8 +97,7 @@ def ValidateEnvironment() -> bool:
     print("🐍 Testing Python imports...")
     try:
         from PySide6.QtWidgets import QApplication
-        from Source.Interface.CustomWindow import CustomWindow
-        print(" ✅ PySide6 and CustomWindow available")
+        print(" ✅ PySide6 available")
     except ImportError as Error:
         print(f" ❌ Import error: {Error}")
         return False
@@ -106,9 +106,6 @@ def ValidateEnvironment() -> bool:
     
     if MissingFiles:
         print(f"❌ Missing {len(MissingFiles)} required files!")
-        if "Source/Interface/CustomWindow.py" in MissingFiles:
-            print("🚨 CRITICAL: CustomWindow.py is missing!")
-            print("💡 Copy from: cp Legacy/CustomWindow.py Source/Interface/CustomWindow.py")
         return False
     
     print("✅ ENVIRONMENT VALIDATION PASSED")
@@ -162,36 +159,14 @@ def RunApplicationOriginalPattern() -> int:
         App.setApplicationVersion("2.0")
         App.setOrganizationName("Project Himalaya")
         App.setOrganizationDomain("BowersWorld.com")
+        AppIconPath = Path(__file__).parent / "Assets" / "icon.png"
+        AppIcon = QIcon(str(AppIconPath))
+        if AppIcon.isNull():
+            Logger.warning(f"Failed to load application icon from {AppIconPath}")
+        App.setWindowIcon(AppIcon)
         
         # Apply the original stylesheet (exactly like Legacy/Andy.py)
-        App.setStyleSheet("""
-            * {
-                background-color: qlineargradient(
-                    spread:repeat, x1:1, y1:0, x2:1, y2:1, 
-                    stop:0.00480769 rgba(3, 50, 76, 255), 
-                    stop:0.293269 rgba(6, 82, 125, 255), 
-                    stop:0.514423 rgba(8, 117, 178, 255), 
-                    stop:0.745192 rgba(7, 108, 164, 255), 
-                    stop:1 rgba(3, 51, 77, 255)
-                );
-                color: #FFFFFF;
-                border: none;
-            }
-
-            QComboBox::down-arrow {
-                image: url(Assets/arrow.png);
-            }
-
-            QComboBox::item:hover, QListView::item:hover {
-                border: 3px solid red;
-            }
-            
-            QToolTip { 
-                color: #ffffff; 
-                border: none; 
-                font-size: 16px; 
-            }
-        """)
+        
         
         try:
             # Follow the EXACT original pattern from Legacy/Andy.py:
@@ -199,16 +174,14 @@ def RunApplicationOriginalPattern() -> int:
             # window = CustomWindow("Anderson's Library", main_window)
             # window.showMaximized()
             
-            Logger.info("Creating main window (original pattern)...")
+            Logger.info("Creating main window...")
             MainWindowInstance = MainWindow()
             
-            Logger.info("Wrapping with CustomWindow...")
-            WindowWrapper = CustomWindow("Anderson's Library", MainWindowInstance)
-            
             Logger.info("Showing maximized...")
-            WindowWrapper.showMaximized()
+            MainWindowInstance.showMaximized()
+            MainWindowInstance.setWindowIcon(AppIcon)
             
-            Logger.info("Anderson's Library started successfully with original pattern")
+            Logger.info("Anderson's Library started successfully")
             
             # Run the event loop (like original)
             ExitCode = App.exec()

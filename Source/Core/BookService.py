@@ -151,36 +151,55 @@ class BookService:
             self.Logger.error(f"Failed to get subjects for category '{Category}': {Error}")
             return []
     
-    def OpenBook(self, BookTitle: str) -> bool:
+    def OpenBook(self, BookIdentifier) -> bool:
         """
         Open a book PDF using system default application.
         
         Args:
-            BookTitle: Title of book to open
+            BookIdentifier: Title (str) or ID (int) of book to open
             
         Returns:
             True if successful, False otherwise
         """
         try:
-            # Get book details using new schema
-            Books = self.DatabaseManager.GetBooks(SearchTerm=BookTitle)
+            BookData = None
             
-            if not Books:
-                self.Logger.warning(f"Book not found: {BookTitle}")
+            if isinstance(BookIdentifier, str):
+                # Search by title
+                Books = self.DatabaseManager.GetBooks(SearchTerm=BookIdentifier)
+                
+                if not Books:
+                    self.Logger.warning(f"Book not found: {BookIdentifier}")
+                    return False
+                
+                # Find exact match by title
+                for Book in Books:
+                    if Book.get('Title', '') == BookIdentifier:
+                        BookData = Book
+                        break
+                
+                if not BookData:
+                    # Use first result if no exact match
+                    BookData = Books[0]
+                    
+            elif isinstance(BookIdentifier, int):
+                # Search by ID
+                Books = self.DatabaseManager.GetBooks()
+                
+                for Book in Books:
+                    if Book.get('ID', 0) == BookIdentifier:
+                        BookData = Book
+                        break
+                
+                if not BookData:
+                    self.Logger.warning(f"Book not found with ID: {BookIdentifier}")
+                    return False
+            else:
+                self.Logger.error(f"Invalid book identifier type: {type(BookIdentifier)}")
                 return False
             
-            # Find exact match by title
-            BookData = None
-            for Book in Books:
-                if Book.get('Title', '') == BookTitle:
-                    BookData = Book
-                    break
-            
-            if not BookData:
-                # Use first result if no exact match
-                BookData = Books[0]
-            
             FilePath = BookData.get('FilePath', '')
+            BookTitle = BookData.get('Title', 'Unknown')
             
             if not FilePath:
                 self.Logger.warning(f"No file path for book: {BookTitle}")
@@ -205,10 +224,10 @@ class BookService:
             return True
             
         except subprocess.CalledProcessError as Error:
-            self.Logger.error(f"Failed to open book '{BookTitle}': {Error}")
+            self.Logger.error(f"Failed to open book '{BookIdentifier}': {Error}")
             return False
         except Exception as Error:
-            self.Logger.error(f"Error opening book '{BookTitle}': {Error}")
+            self.Logger.error(f"Error opening book '{BookIdentifier}': {Error}")
             return False
     
     def GetBookDetails(self, BookTitle: str) -> Optional[Dict[str, Any]]:

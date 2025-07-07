@@ -42,6 +42,7 @@ from Source.Core.DatabaseManager import DatabaseManager
 from Source.Core.BookService import BookService
 from Source.Interface.FilterPanel import FilterPanel
 from Source.Interface.BookGrid import BookGrid
+from Source.Utils.AboutDialog import AboutDialog
 
 
 class MainWindow(QMainWindow):
@@ -85,9 +86,9 @@ class MainWindow(QMainWindow):
         # Initialize application
         self.InitializeComponents()
         self.SetupUI()
-        self.ConnectSignals()
         self.ApplyTheme()
-        self.LoadInitialData()
+        self.ConnectSignals()
+        self.LoadInitialData() # Ensure initial data is loaded after setup
         
         self.Logger.info("MainWindow initialized successfully")
     
@@ -97,9 +98,9 @@ class MainWindow(QMainWindow):
             # Initialize database manager
             self.DatabaseManager = DatabaseManager("Data/Databases/MyLibrary.db")
             
-            # Validate database schema
-            if not self.DatabaseManager.ValidateSchema():
-                self.ShowCriticalError("Database schema validation failed")
+            # Connect to database
+            if not self.DatabaseManager.Connect():
+                self.ShowCriticalError("Database connection failed")
                 return
             
             # Initialize book service
@@ -120,14 +121,12 @@ class MainWindow(QMainWindow):
         try:
             # Set window properties
             self.setWindowTitle("Anderson's Library - Professional Edition")
-            self.setMinimumSize(1200, 800)
             self.resize(1600, 1000)
             
             # Create menu bar
             self.CreateMenuBar()
             
-            # Create toolbar
-            self.CreateToolBar()
+            
             
             # Create central widget
             self.CentralWidget = QWidget()
@@ -214,32 +213,7 @@ class MainWindow(QMainWindow):
         except Exception as Error:
             self.Logger.error(f"Failed to create menu bar: {Error}")
     
-    def CreateToolBar(self) -> None:
-        """Create the application toolbar."""
-        try:
-            ToolBar = self.addToolBar("Main")
-            ToolBar.setMovable(False)
-            
-            # Refresh button
-            RefreshButton = QPushButton("Refresh")
-            RefreshButton.clicked.connect(self.RefreshLibrary)
-            ToolBar.addWidget(RefreshButton)
-            
-            ToolBar.addSeparator()
-            
-            # View mode buttons
-            GridButton = QPushButton("Grid")
-            GridButton.clicked.connect(lambda: self.SetViewMode("grid"))
-            ToolBar.addWidget(GridButton)
-            
-            ListButton = QPushButton("List")
-            ListButton.clicked.connect(lambda: self.SetViewMode("list"))
-            ToolBar.addWidget(ListButton)
-            
-            self.Logger.debug("Toolbar created successfully")
-            
-        except Exception as Error:
-            self.Logger.error(f"Failed to create toolbar: {Error}")
+    
     
     def CreateStatusBar(self) -> None:
         """Create and configure the status bar."""
@@ -275,7 +249,8 @@ class MainWindow(QMainWindow):
             # Filter panel signals
             self.FilterPanel.FiltersChanged.connect(self.OnFiltersChanged)
             self.FilterPanel.SearchRequested.connect(self.OnSearchRequested)
-            self.FilterPanel.ResetRequested.connect(self.OnResetRequested)
+            self.FilterPanel.ViewModeChanged.connect(self.SetViewMode)
+            self.FilterPanel.SubjectsUpdated.connect(self.UpdateDatabaseStats)
             
             # Book grid signals
             self.BookGrid.BookSelected.connect(self.OnBookSelected)
@@ -290,6 +265,8 @@ class MainWindow(QMainWindow):
         except Exception as Error:
             self.Logger.error(f"Failed to connect signals: {Error}")
     
+    
+    
     def ApplyTheme(self) -> None:
         """Apply the application theme and styling."""
         try:
@@ -300,7 +277,14 @@ class MainWindow(QMainWindow):
             # Apply modern dark theme
             self.setStyleSheet("""
                 QMainWindow {
-                    background-color: #2b2b2b;
+                    background-color: qlineargradient(
+                        spread:repeat, x1:1, y1:0, x2:1, y2:1, 
+                        stop:0.00480769 rgba(3, 50, 76, 255), 
+                        stop:0.293269 rgba(6, 82, 125, 255), 
+                        stop:0.514423 rgba(8, 117, 178, 255), 
+                        stop:0.745192 rgba(7, 108, 164, 255), 
+                        stop:1 rgba(3, 51, 77, 255)
+                    );
                     color: #ffffff;
                 }
                 
@@ -362,7 +346,7 @@ class MainWindow(QMainWindow):
                 }
                 
                 QStatusBar {
-                    background-color: #3c3c3c;
+                    background-color: #FF0000;
                     color: #ffffff;
                     border-top: 1px solid #555555;
                 }
@@ -388,6 +372,12 @@ class MainWindow(QMainWindow):
                 QSplitter::handle:hover {
                     background-color: #0078d4;
                 }
+                QToolTip { 
+                    color: #ffffff; 
+                    background-color: #3c3c3c; 
+                    border: 1px solid #555555; 
+                    font-size: 16px; 
+                }
             """)
             
             self.Logger.debug("Theme applied successfully")
@@ -398,10 +388,10 @@ class MainWindow(QMainWindow):
     def LoadInitialData(self) -> None:
         """Load initial data when application starts."""
         try:
-            self.ShowProgress("Loading library...")
-            
-            # Load all books initially
-            QTimer.singleShot(100, self.LoadAllBooks)
+            # Force re-parsing of this method
+            if self.BookGrid:
+                self.BookGrid.SetBooks([])
+            self.UpdateDatabaseStats()
             
         except Exception as Error:
             self.Logger.error(f"Failed to load initial data: {Error}")
@@ -424,7 +414,7 @@ class MainWindow(QMainWindow):
             
             # Update status
             BookCount = len(self.CurrentBooks)
-            self.UpdateStatusBar(f"Showing all books: {BookCount} books with BLOB thumbnails")
+            self.UpdateStatusBar(f"Showing all books: {BookCount} books")
             self.UpdateDatabaseStats()
             
             self.HideProgress()
@@ -478,6 +468,7 @@ class MainWindow(QMainWindow):
             # Update status
             self.UpdateFilterStatus(Criteria, len(FilteredBooks))
             self.HideProgress()
+            self.UpdateDatabaseStats()
             
             self.Logger.debug(f"Applied filters, showing {len(FilteredBooks)} books")
             
@@ -604,16 +595,8 @@ Current Display: {len(self.CurrentBooks)} books"""
     def ShowAbout(self) -> None:
         """Show about dialog."""
         try:
-            Message = """Anderson's Library - Professional Edition
-Version 2.0
-
-A modern book management application with embedded thumbnails
-and professional modular architecture.
-
-Built with PySide6 and SQLite
-Following Design Standard v1.8"""
-            
-            QMessageBox.about(self, "About Anderson's Library", Message)
+            about_dialog = AboutDialog(self)
+            about_dialog.exec()
             
         except Exception as Error:
             self.Logger.error(f"Failed to show about dialog: {Error}")
@@ -650,7 +633,22 @@ Following Design Standard v1.8"""
                 return
             
             Stats = self.BookService.GetDatabaseStats()
-            StatsText = f"Library: {Stats.get('Books', 0)} books, {Stats.get('Categories', 0)} categories"
+            
+            TotalBooksCount = Stats.get('Books', 0) # Total books in DB
+            DisplayedBooksCount = len(self.CurrentBooks) # Books currently displayed
+
+            # Get current subjects in dropdown from FilterPanel
+            SubjectsInDropdown = 0
+            if self.FilterPanel and self.FilterPanel.SubjectComboBox:
+                SubjectsInDropdown = self.FilterPanel.SubjectComboBox.count() - 1 # Exclude "All Subjects"
+
+            # Determine which total to display
+            if DisplayedBooksCount > 0:
+                DisplayTotal = DisplayedBooksCount
+            else:
+                DisplayTotal = TotalBooksCount
+
+            StatsText = f"<span style=\"color: #FFFFFF;\">{Stats.get('Categories', 0)}</span> <span style=\"color: #FFFF00;\">Categories</span>&nbsp;&nbsp;<span style=\"color: #FFFFFF;\">{SubjectsInDropdown}</span> <span style=\"color: #FFFF00;\">Subjects</span>&nbsp;&nbsp;<span style=\"color: #FFFFFF;\">{DisplayTotal}</span> <span style=\"color: #FFFF00;\">Total eBooks</span>"
             self.DatabaseStatsLabel.setText(StatsText)
             
         except Exception as Error:
